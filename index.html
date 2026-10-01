@@ -24,10 +24,13 @@
   .progress > div { height:100%; }
   .fade-in { animation: fade .2s ease; }
   @keyframes fade { from{opacity:0} to{opacity:1} }
+  .nav-item.active { background:rgba(59,130,246,.12); color:#2563eb; font-weight:600; }
+  .dark .nav-item.active { background:rgba(96,165,250,.15); color:#93c5fd; }
 </style>
 </head>
 <body>
 
+<!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-600 to-indigo-700">
   <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
     <div class="text-center mb-6">
@@ -56,31 +59,82 @@
   </div>
 </div>
 
+<!-- ============ MAIN APP ============ -->
 <div id="appScreen" class="hidden min-h-screen">
-  <header class="card border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-20">
-    <div class="flex-1">
-      <div class="font-bold">DompetKu</div>
-      <div class="text-xs muted" id="headerUser">User</div>
-    </div>
-    <div class="flex items-center gap-2">
-      <div id="syncStatus" class="text-xs muted flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Syncing...
+  <div class="flex min-h-screen">
+    
+    <!-- SIDEBAR (Desktop Only) -->
+    <aside class="hidden md:flex flex-col w-64 card border-r border-divider p-4 sticky top-0 h-screen">
+      <div class="flex items-center gap-2 mb-6">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold">D</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold">DompetKu</div>
+          <div class="text-xs muted truncate" id="sidebarUser">User</div>
+        </div>
       </div>
-      <button onclick="logout()" class="p-2 rounded hover:bg-black/5" title="Keluar">🚪</button>
+      <nav class="flex-1 space-y-1 text-sm">
+        <a href="#/" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="">
+          <span>📊</span><span>Dashboard</span>
+        </a>
+        <a href="#/transactions" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="transactions">
+          <span>💳</span><span>Transaksi</span>
+        </a>
+        <a href="#/savings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="savings">
+          <span>🏦</span><span>Tabungan</span>
+        </a>
+        <a href="#/settings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="settings">
+          <span>⚙️</span><span>Pengaturan</span>
+        </a>
+      </nav>
+      <div class="mt-4 pt-4 border-t border-divider">
+        <div class="flex items-center gap-2 mb-3">
+          <div id="syncStatus" class="text-xs muted flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Syncing...
+          </div>
+        </div>
+        <button onclick="logout()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 py-2 rounded-lg text-sm font-semibold"> Keluar</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- TOPBAR -->
+      <header class="card border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-20">
+        <div class="flex-1">
+          <div class="font-bold md:hidden">DompetKu</div>
+          <div class="text-xs muted md:hidden" id="headerUserMobile">User</div>
+        </div>
+        <button onclick="window.openTransactionForm()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+          <span>＋</span> <span class="hidden sm:inline">Transaksi</span>
+        </button>
+      </header>
+
+      <main id="content" class="p-4 md:p-6 flex-1 fade-in"></main>
     </div>
-  </header>
-  <main id="content" class="p-4 fade-in"></main>
+  </div>
+
+  <!-- Bottom Nav (Mobile Only) -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 card border-t flex justify-around items-center z-20 pb-4 bg-white dark:bg-slate-900">
-    <a href="#/" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route=""><span class="text-xl">📊</span><span>Home</span></a>
-    <a href="#/transactions" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="transactions"><span class="text-xl">💳</span><span>Transaksi</span></a>
-    <a href="#/savings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="savings"><span class="text-xl">🏦</span><span>Tabungan</span></a>
-    <a href="#/settings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="settings"><span class="text-xl">⚙️</span><span>Lainnya</span></a>
+    <a href="#/" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="">
+      <span class="text-xl">📊</span><span>Home</span>
+    </a>
+    <a href="#/transactions" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="transactions">
+      <span class="text-xl">💳</span><span>Transaksi</span>
+    </a>
+    <a href="#/savings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="savings">
+      <span class="text-xl">🏦</span><span>Tabungan</span>
+    </a>
+    <a href="#/settings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="settings">
+      <span class="text-xl">⚙️</span><span>Lainnya</span>
+    </a>
   </nav>
-  <button onclick="openTransactionForm()" class="md:hidden fixed right-4 bottom-20 w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl shadow-lg z-30 flex items-center justify-center">＋</button>
+
+  <!-- FAB (Mobile Only) -->
+  <button onclick="window.openTransactionForm()" class="md:hidden fixed right-4 bottom-20 w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl shadow-lg z-30 flex items-center justify-center">＋</button>
 </div>
 
 <div id="modalRoot"></div>
-<div id="toast" class="fixed bottom-24 right-4 z-50 space-y-2 max-w-sm"></div>
+<div id="toast" class="fixed bottom-24 md:bottom-4 right-4 z-50 space-y-2 max-w-sm"></div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -100,13 +154,11 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-window.firebaseAuth = auth;
-window.firebaseDb = db;
-
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     window.currentUser = user;
-    document.getElementById('headerUser').textContent = user.displayName || user.email;
+    document.getElementById('headerUserMobile').textContent = user.displayName || user.email;
+    document.getElementById('sidebarUser').textContent = user.displayName || user.email;
     await loadUserData(user.uid);
     showApp();
   } else {
@@ -152,7 +204,7 @@ async function saveUserData(uid) {
 
 function updateSyncStatus(text, colorClass) {
   const el = document.getElementById('syncStatus');
-  el.innerHTML = `<span class="w-2 h-2 rounded-full ${colorClass}"></span> ${text}`;
+  if (el) el.innerHTML = `<span class="w-2 h-2 rounded-full ${colorClass}"></span> ${text}`;
 }
 window.saveDB = saveUserData;
 
@@ -206,7 +258,7 @@ function defaultDB() {
   return {
     user: { name: 'User', currency: 'Rp' },
     accounts: [ { id:'a1', name:'Cash', type:'cash', opening_balance:0, balance:0, color:'#10b981' }, { id:'a2', name:'Bank BCA', type:'bank', opening_balance:0, balance:0, color:'#3b82f6' }, { id:'a3', name:'GoPay', type:'ewallet', opening_balance:0, balance:0, color:'#0ea5e9' } ],
-    categories: [ { id:'c1', name:'Gaji', type:'income', color:'#10b981', icon:'💼' }, { id:'c10', name:'Makanan', type:'expense', color:'#ef4444', icon:'🍔' }, { id:'c11', name:'Transportasi', type:'expense', color:'#f97316', icon:'🚗' }, { id:'c12', name:'Belanja', type:'expense', color:'#eab308', icon:'🛍️' }, { id:'c13', name:'Tagihan', type:'expense', color:'#a855f7', icon:'📄' }, { id:'c16', name:'Hiburan', type:'expense', color:'#ec4899', icon:'🎬' }, { id:'c30', name:'Dana Darurat', type:'saving', color:'#6366f1', icon:'🛟' }, { id:'c33', name:'Tabungan Lainnya', type:'saving', color:'#10b981', icon:'🏦' } ],
+    categories: [ { id:'c1', name:'Gaji', type:'income', color:'#10b981', icon:'💼' }, { id:'c2', name:'Bonus', type:'income', color:'#22c55e', icon:'' }, { id:'c3', name:'Freelance', type:'income', color:'#14b8a6', icon:'💻' }, { id:'c10', name:'Makanan', type:'expense', color:'#ef4444', icon:'🍔' }, { id:'c11', name:'Transportasi', type:'expense', color:'#f97316', icon:'🚗' }, { id:'c12', name:'Belanja', type:'expense', color:'#eab308', icon:'🛍️' }, { id:'c13', name:'Tagihan', type:'expense', color:'#a855f7', icon:'📄' }, { id:'c16', name:'Hiburan', type:'expense', color:'#ec4899', icon:'🎬' }, { id:'c22', name:'Lainnya', type:'expense', color:'#78716c', icon:'📦' }, { id:'c30', name:'Dana Darurat', type:'saving', color:'#6366f1', icon:'🛟' }, { id:'c32', name:'Tabungan Liburan', type:'saving', color:'#06b6d4', icon:'🏖️' }, { id:'c33', name:'Tabungan Lainnya', type:'saving', color:'#10b981', icon:'🏦' } ],
     transactions: [], savings_goals: [], transfers: [], settings: { theme: 'light' }
   };
 }
@@ -257,7 +309,6 @@ function recomputeBalances(db) {
     if(t.type === 'income') acc.balance += Number(t.amount);
     else if(t.type === 'expense') acc.balance -= Number(t.amount);
   });
-  
 }
 function getTotalAllocated(db) { return db.savings_goals.reduce((s,g) => s + Number(g.current||0), 0); }
 function getAvailableBalance(db) { return Math.max(0, window.DB.accounts.reduce((s,a) => s + Number(a.balance||0), 0) - getTotalAllocated(window.DB)); }
@@ -267,8 +318,9 @@ const routes = { '': { title:'Dashboard', render: renderDashboard }, 'transactio
 window.route = function() {
   const hash = (location.hash || '#/').slice(2);
   const r = routes[hash] || routes[''];
-  document.querySelectorAll('.bnav').forEach(el => {
+  document.querySelectorAll('.nav-item, .bnav').forEach(el => {
     const isActive = el.dataset.route === hash;
+    el.classList.toggle('active', isActive);
     el.classList.toggle('text-blue-600', isActive);
     el.classList.toggle('muted', !isActive);
   });
@@ -291,11 +343,11 @@ function renderDashboard() {
   const availableBalance = getAvailableBalance(window.DB);
 
   let html = '<div class="mb-4"><h1 class="text-2xl font-bold">Dashboard</h1><p class="muted text-sm">' + new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'}) + '</p></div>';
-  html += '<div class="card rounded-2xl p-4 mb-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white"><div class="text-xs opacity-80 mb-1">💰 Saldo Total</div><div class="text-3xl font-bold mb-3">' + fmt(totalBalance) + '</div><div class="grid grid-cols-2 gap-2"><div class="bg-white/10 rounded-lg p-2"><div class="text-xs opacity-80">🏦 Dialokasikan</div><div class="text-sm font-bold">' + fmt(totalAllocated) + '</div></div><div class="bg-white/10 rounded-lg p-2"><div class="text-xs opacity-80">✅ Siap Pakai</div><div class="text-sm font-bold">' + fmt(availableBalance) + '</div></div></div></div>';
+  html += '<div class="card rounded-2xl p-4 mb-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white"><div class="text-xs opacity-80 mb-1"> Saldo Total</div><div class="text-3xl font-bold mb-3">' + fmt(totalBalance) + '</div><div class="grid grid-cols-2 gap-2"><div class="bg-white/10 rounded-lg p-2"><div class="text-xs opacity-80">🏦 Dialokasikan</div><div class="text-sm font-bold">' + fmt(totalAllocated) + '</div></div><div class="bg-white/10 rounded-lg p-2"><div class="text-xs opacity-80">✅ Siap Pakai</div><div class="text-sm font-bold">' + fmt(availableBalance) + '</div></div></div></div>';
 
   if (isMobile) {
     html += '<div class="grid grid-cols-2 gap-2 mb-4"><div class="card rounded-xl p-3"><div class="text-xs muted">📥 Pemasukan</div><div class="text-lg font-bold text-emerald-600">' + fmt(income) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">📤 Pengeluaran</div><div class="text-lg font-bold text-red-600">' + fmt(expense) + '</div></div></div>';
-    html += '<div class="grid grid-cols-2 gap-2 mb-4"><button onclick="window.openTransactionForm()" class="card rounded-xl p-4 text-center hover:bg-black/5"><div class="text-2xl mb-1">📝</div><div class="text-sm font-semibold">Catat Transaksi</div></button><a href="#/transactions" class="card rounded-xl p-4 text-center hover:bg-black/5"><div class="text-2xl mb-1">📋</div><div class="text-sm font-semibold">Lihat Semua</div></a></div>';
+    html += '<div class="grid grid-cols-2 gap-2 mb-4"><button onclick="window.openTransactionForm()" class="card rounded-xl p-4 text-center hover:bg-black/5"><div class="text-2xl mb-1"></div><div class="text-sm font-semibold">Catat Transaksi</div></button><a href="#/transactions" class="card rounded-xl p-4 text-center hover:bg-black/5"><div class="text-2xl mb-1">📋</div><div class="text-sm font-semibold">Lihat Semua</div></a></div>';
   } else {
     html += '<div class="grid grid-cols-4 gap-3 mb-4"><div class="card rounded-xl p-3"><div class="text-xs muted">📥 Pemasukan</div><div class="text-lg font-bold text-emerald-600">' + fmt(income) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">📤 Pengeluaran</div><div class="text-lg font-bold text-red-600">' + fmt(expense) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">🏦 Tabungan</div><div class="text-lg font-bold text-indigo-600">' + fmt(saving) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">💳 Transaksi</div><div class="text-lg font-bold">' + txs.length + '</div></div></div>';
   }
@@ -335,7 +387,7 @@ function renderTxList() {
     const chip = t.type === 'income' ? 'chip-inc' : t.type === 'expense' ? 'chip-exp' : 'chip-sav';
     const color = t.type === 'income' ? 'text-emerald-600' : t.type === 'expense' ? 'text-red-600' : 'text-indigo-600';
     const sign = t.type === 'income' ? '+' : t.type === 'expense' ? '-' : '';
-    return '<div class="flex items-center gap-2 p-3 border-b last:border-0"><div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + (cat?.color||'#888') + '22">' + (cat?.icon||'💸') + '</div><div class="flex-1 min-w-0"><div class="font-medium text-sm truncate">' + esc(t.description||cat?.name||'-') + '</div><div class="text-xs muted">' + fmtDate(t.transaction_date) + ' • <span class="chip ' + chip + '">' + (cat?.name||'-') + '</span></div></div><div class="text-right flex-shrink-0"><div class="font-bold text-sm ' + color + '">' + sign + fmt(t.amount) + '</div><div class="flex gap-1 justify-end mt-1"><button onclick="window.openTransactionForm(\'' + t.id + '\')" class="text-xs p-1">✏️</button><button onclick="window.deleteTx(\'' + t.id + '\')" class="text-xs p-1">🗑️</button></div></div></div>';
+    return '<div class="flex items-center gap-2 p-3 border-b last:border-0"><div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + (cat?.color||'#888') + '22">' + (cat?.icon||'💸') + '</div><div class="flex-1 min-w-0"><div class="font-medium text-sm truncate">' + esc(t.description||cat?.name||'-') + '</div><div class="text-xs muted">' + fmtDate(t.transaction_date) + ' • <span class="chip ' + chip + '">' + (cat?.name||'-') + '</span></div></div><div class="text-right flex-shrink-0"><div class="font-bold text-sm ' + color + '">' + sign + fmt(t.amount) + '</div><div class="flex gap-1 justify-end mt-1"><button onclick="window.openTransactionForm(\'' + t.id + '\')" class="text-xs p-1">✏️</button><button onclick="window.deleteTx(\'' + t.id + '\')" class="text-xs p-1">️</button></div></div></div>';
   }).join('');
 }
 
@@ -390,7 +442,7 @@ function renderSavings() {
     const days = daysBetween(todayISO(), g.deadline);
     const monthly = days > 0 ? Math.ceil((g.target-g.current)/(days/30)) : 0;
     const color = pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-indigo-500' : 'bg-amber-500';
-    html += '<div class="card rounded-xl p-4"><div class="flex items-start justify-between mb-2"><div class="flex-1 min-w-0"><div class="font-bold truncate">' + esc(g.name) + '</div><div class="text-xs muted">Target: ' + fmt(g.target) + '</div></div><div class="flex gap-1"><button onclick="window.addSaving(\'' + g.id + '\')" class="p-2">💵</button><button onclick="window.openGoalForm(\'' + g.id + '\')" class="p-2">✏️</button><button onclick="window.deleteGoal(\'' + g.id + '\')" class="p-2">🗑️</button></div></div><div class="flex items-baseline gap-1 mb-2"><div class="text-xl font-bold">' + fmt(g.current) + '</div><div class="text-xs muted">/ ' + fmt(g.target) + '</div></div><div class="progress mb-2"><div class="' + color + '" style="width:' + Math.min(100,pct) + '%"></div></div><div class="flex justify-between text-xs muted"><span>' + pct.toFixed(1) + '% progress</span><span>' + (days > 0 ? days + ' hari lagi' : 'Terlewat') + '</span></div>';
+    html += '<div class="card rounded-xl p-4"><div class="flex items-start justify-between mb-2"><div class="flex-1 min-w-0"><div class="font-bold truncate">' + esc(g.name) + '</div><div class="text-xs muted">Target: ' + fmt(g.target) + '</div></div><div class="flex gap-1"><button onclick="window.addSaving(\'' + g.id + '\')" class="p-2">💵</button><button onclick="window.openGoalForm(\'' + g.id + '\')" class="p-2">✏️</button><button onclick="window.deleteGoal(\'' + g.id + '\')" class="p-2">️</button></div></div><div class="flex items-baseline gap-1 mb-2"><div class="text-xl font-bold">' + fmt(g.current) + '</div><div class="text-xs muted">/ ' + fmt(g.target) + '</div></div><div class="progress mb-2"><div class="' + color + '" style="width:' + Math.min(100,pct) + '%"></div></div><div class="flex justify-between text-xs muted"><span>' + pct.toFixed(1) + '% progress</span><span>' + (days > 0 ? days + ' hari lagi' : 'Terlewat') + '</span></div>';
     if(days > 0) html += '<div class="text-xs mt-2 p-2 rounded bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400"><b>~' + fmt(monthly) + '/bulan</b> untuk mencapai target</div>';
     html += '</div>';
   });
@@ -438,7 +490,7 @@ window.deleteGoal = async function(id) {
 
 function renderSettings() {
   const user = window.currentUser;
-  const html = '<div class="mb-4"><h1 class="text-2xl font-bold">Pengaturan</h1><p class="muted text-sm">Profil & data</p></div><div class="card rounded-xl p-4 mb-3"><div class="flex items-center gap-3 mb-3"><div class="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center text-white font-bold text-lg">' + (user?.displayName||'U')[0].toUpperCase() + '</div><div><div class="font-bold">' + esc(user?.displayName||'User') + '</div><div class="text-xs muted">' + esc(user?.email||'') + '</div><div class="text-xs text-emerald-600 mt-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Tersinkron dengan cloud</div></div></div><button onclick="window.logout()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 py-2 rounded-lg font-semibold">🚪 Keluar</button></div><div class="card rounded-xl p-4 mb-3"><h3 class="font-semibold mb-3">📱 Install di HP</h3><div class="text-sm muted space-y-1"><div>📲 <b>Android:</b> Menu ⋮ → "Install app"</div><div>📲 <b>iPhone:</b> Share → "Add to Home Screen"</div></div></div><div class="card rounded-xl p-4 mb-3"><h3 class="font-semibold mb-3">⬇️ Backup Lokal</h3><button onclick="window.exportJSON()" class="w-full bg-blue-600 text-white py-2 rounded-lg text-sm mb-2">Export JSON Backup</button><button onclick="window.exportCSV()" class="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm">Export CSV</button></div><div class="card rounded-xl p-4"><h3 class="font-semibold mb-3 text-red-600">⚠️ Reset Data</h3><button onclick="window.resetAll()" class="w-full bg-red-600 text-white py-2 rounded-lg text-sm">Reset Semua Data</button></div>';
+  const html = '<div class="mb-4"><h1 class="text-2xl font-bold">Pengaturan</h1><p class="muted text-sm">Profil & data</p></div><div class="card rounded-xl p-4 mb-3"><div class="flex items-center gap-3 mb-3"><div class="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center text-white font-bold text-lg">' + (user?.displayName||'U')[0].toUpperCase() + '</div><div><div class="font-bold">' + esc(user?.displayName||'User') + '</div><div class="text-xs muted">' + esc(user?.email||'') + '</div><div class="text-xs text-emerald-600 mt-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Tersinkron dengan cloud</div></div></div><button onclick="window.logout()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 py-2 rounded-lg font-semibold"> Keluar</button></div><div class="card rounded-xl p-4 mb-3"><h3 class="font-semibold mb-3">📱 Install di HP</h3><div class="text-sm muted space-y-1"><div>📲 <b>Android:</b> Menu ⋮ → "Install app"</div><div>📲 <b>iPhone:</b> Share → "Add to Home Screen"</div></div></div><div class="card rounded-xl p-4 mb-3"><h3 class="font-semibold mb-3">⬇️ Backup Lokal</h3><button onclick="window.exportJSON()" class="w-full bg-blue-600 text-white py-2 rounded-lg text-sm mb-2">Export JSON Backup</button><button onclick="window.exportCSV()" class="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm">Export CSV</button></div><div class="card rounded-xl p-4"><h3 class="font-semibold mb-3 text-red-600">⚠️ Reset Data</h3><button onclick="window.resetAll()" class="w-full bg-red-600 text-white py-2 rounded-lg text-sm">Reset Semua Data</button></div>';
   document.getElementById('content').innerHTML = html;
 }
 
