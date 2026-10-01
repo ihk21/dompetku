@@ -2,11 +2,12 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="theme-color" content="#3b82f6"/>
 <title>DompetKu — Cloud Sync</title>
 <link rel="manifest" href="./manifest.json"/>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root { --bg:#f8fafc; --card:#ffffff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; }
   .dark { --bg:#0b1220; --card:#111a2e; --border:#1f2a44; --text:#e2e8f0; --muted:#94a3b8; }
@@ -25,7 +26,7 @@
   .fade-in { animation: fade .2s ease; }
   @keyframes fade { from{opacity:0} to{opacity:1} }
   .nav-item.active { background:rgba(59,130,246,.12); color:#2563eb; font-weight:600; }
-  .dark .nav-item.active { background:rgba(96,165,250,.15); color:#93c5fd; }
+  .nav-section { font-size:.65rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:.5rem 1rem; margin-top:.5rem; }
 </style>
 </head>
 <body>
@@ -38,47 +39,23 @@
       <h1 class="text-2xl font-bold">DompetKu</h1>
       <p class="text-sm muted mt-1">Keuangan Pribadi • Cloud Sync</p>
     </div>
-    
     <div class="flex gap-2 mb-4 border-b">
       <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600">Masuk</button>
       <button id="tabRegister" onclick="switchAuthTab('register')" class="flex-1 pb-2 font-semibold muted">Daftar</button>
     </div>
-    
-    <!-- LOGIN FORM - MENGGUNAKAN EMAIL -->
     <form id="loginForm" class="space-y-3">
-      <div>
-        <label class="text-xs font-semibold text-gray-700 mb-1 block">Email</label>
-        <input id="loginEmail" type="email" placeholder="contoh@email.com" required class="w-full rounded-lg px-3 py-2 border border-gray-300"/>
-        <p class="text-xs text-gray-500 mt-1"> Gunakan email yang sama saat daftar</p>
-      </div>
-      <div>
-        <label class="text-xs font-semibold text-gray-700 mb-1 block">Password</label>
-        <input id="loginPass" type="password" placeholder="Minimal 6 karakter" required class="w-full rounded-lg px-3 py-2 border border-gray-300"/>
-      </div>
+      <input id="loginEmail" type="email" placeholder="Email" required class="w-full rounded-lg px-3 py-2"/>
+      <input id="loginPass" type="password" placeholder="Password" required class="w-full rounded-lg px-3 py-2"/>
       <div id="loginError" class="hidden text-red-500 text-sm bg-red-50 p-2 rounded"></div>
-      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold">Masuk</button>
+      <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold">Masuk</button>
     </form>
-    
-    <!-- REGISTER FORM -->
     <form id="registerForm" class="hidden space-y-3">
-      <div>
-        <label class="text-xs font-semibold text-gray-700 mb-1 block">Nama Lengkap</label>
-        <input id="regName" type="text" placeholder="Nama Anda" required class="w-full rounded-lg px-3 py-2 border border-gray-300"/>
-      </div>
-      <div>
-        <label class="text-xs font-semibold text-gray-700 mb-1 block">Email</label>
-        <input id="regEmail" type="email" placeholder="contoh@email.com" required class="w-full rounded-lg px-3 py-2 border border-gray-300"/>
-        <p class="text-xs text-gray-500 mt-1">📧 Email ini akan digunakan untuk login</p>
-      </div>
-      <div>
-        <label class="text-xs font-semibold text-gray-700 mb-1 block">Password</label>
-        <input id="regPass" type="password" placeholder="Minimal 6 karakter" minlength="6" required class="w-full rounded-lg px-3 py-2 border border-gray-300"/>
-      </div>
+      <input id="regName" type="text" placeholder="Nama" required class="w-full rounded-lg px-3 py-2"/>
+      <input id="regEmail" type="email" placeholder="Email" required class="w-full rounded-lg px-3 py-2"/>
+      <input id="regPass" type="password" placeholder="Password (min 6 karakter)" minlength="6" required class="w-full rounded-lg px-3 py-2"/>
       <div id="regError" class="hidden text-red-500 text-sm bg-red-50 p-2 rounded"></div>
-      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold">Daftar</button>
+      <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold">Daftar</button>
     </form>
-    
-    <div class="mt-4 text-center text-xs muted">☁️ Data tersinkron otomatis di cloud</div>
   </div>
 </div>
 
@@ -86,8 +63,8 @@
 <div id="appScreen" class="hidden min-h-screen">
   <div class="flex min-h-screen">
     
-    <!-- SIDEBAR (Desktop Only) -->
-    <aside class="hidden md:flex flex-col w-64 card border-r border-divider p-4 sticky top-0 h-screen">
+    <!-- SIDEBAR (Desktop) -->
+    <aside class="hidden md:flex flex-col w-64 card border-r p-4 sticky top-0 h-screen overflow-y-auto">
       <div class="flex items-center gap-2 mb-6">
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold">D</div>
         <div class="flex-1 min-w-0">
@@ -95,69 +72,66 @@
           <div class="text-xs muted truncate" id="sidebarUser">User</div>
         </div>
       </div>
-      <nav class="flex-1 space-y-1 text-sm">
-        <a href="#/" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="">
-          <span>📊</span><span>Dashboard</span>
-        </a>
-        <a href="#/transactions" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="transactions">
-          <span>💳</span><span>Transaksi</span>
-        </a>
-        <a href="#/savings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="savings">
-          <span></span><span>Tabungan</span>
-        </a>
-        <a href="#/settings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" data-route="settings">
-          <span>⚙️</span><span>Pengaturan</span>
-        </a>
+      
+      <nav class="flex-1 text-sm">
+        <div class="nav-section">Utama</div>
+        <a href="#/" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="">📊 Dashboard</a>
+        <a href="#/transactions" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="transactions">💳 Transaksi</a>
+        <a href="#/calendar" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="calendar"> Kalender</a>
+        
+        <div class="nav-section">Keuangan</div>
+        <a href="#/budget" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="budget">🎯 Budget</a>
+        <a href="#/savings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="savings">🏦 Tabungan</a>
+        <a href="#/accounts" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="accounts">💼 Rekening</a>
+        <a href="#/recurring" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="recurring">🔁 Transaksi Berulang</a>
+        
+        <div class="nav-section">Laporan</div>
+        <a href="#/report/daily" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="report/daily">📆 Laporan Harian</a>
+        <a href="#/report/monthly" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="report/monthly">📊 Laporan Bulanan</a>
+        <a href="#/report/compare" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="report/compare">⚖️ Perbandingan</a>
+        <a href="#/analysis" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="analysis">🔍 Analisis</a>
+        
+        <div class="nav-section">Pengaturan</div>
+        <a href="#/categories" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="categories">🏷️ Kategori</a>
+        <a href="#/settings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="settings">⚙️ Pengaturan</a>
       </nav>
-      <div class="mt-4 pt-4 border-t border-divider">
-        <div class="flex items-center gap-2 mb-3">
-          <div id="syncStatus" class="text-xs muted flex items-center gap-1">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Syncing...
-          </div>
+      
+      <div class="mt-4 pt-4 border-t">
+        <div id="syncStatus" class="text-xs muted flex items-center gap-1 mb-3">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Syncing...
         </div>
-        <button onclick="logout()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 py-2 rounded-lg text-sm font-semibold">🚪 Keluar</button>
+        <button onclick="logout()" class="w-full bg-red-50 text-red-600 py-2 rounded-lg text-sm font-semibold">🚪 Keluar</button>
       </div>
     </aside>
 
     <!-- MAIN CONTENT -->
     <div class="flex-1 flex flex-col min-w-0">
-      <!-- TOPBAR -->
-      <header class="card border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-20">
-        <div class="flex-1">
-          <div class="font-bold md:hidden">DompetKu</div>
-          <div class="text-xs muted md:hidden" id="headerUserMobile">User</div>
+      <header class="card border-b px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div class="flex items-center gap-3">
+          <h1 class="text-xl font-bold" id="pageTitle">Dashboard</h1>
         </div>
         <button onclick="window.openTransactionForm()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
           <span>＋</span> <span class="hidden sm:inline">Transaksi</span>
         </button>
       </header>
 
-      <main id="content" class="p-4 md:p-6 flex-1 fade-in"></main>
+      <main id="content" class="p-6 flex-1 fade-in overflow-y-auto"></main>
     </div>
   </div>
 
-  <!-- Bottom Nav (Mobile Only) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 card border-t flex justify-around items-center z-20 pb-4 bg-white dark:bg-slate-900">
-    <a href="#/" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="">
-      <span class="text-xl">📊</span><span>Home</span>
-    </a>
-    <a href="#/transactions" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="transactions">
-      <span class="text-xl">💳</span><span>Transaksi</span>
-    </a>
-    <a href="#/savings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="savings">
-      <span class="text-xl">🏦</span><span>Tabungan</span>
-    </a>
-    <a href="#/settings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="settings">
-      <span class="text-xl">⚙️</span><span>Lainnya</span>
-    </a>
+  <!-- Bottom Nav (Mobile) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 card border-t flex justify-around items-center z-20 pb-4">
+    <a href="#/" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="">📊<span>Home</span></a>
+    <a href="#/transactions" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="transactions">💳<span>Transaksi</span></a>
+    <a href="#/savings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="savings">🏦<span>Tabungan</span></a>
+    <a href="#/settings" class="bnav flex-1 flex flex-col items-center py-2 text-xs" data-route="settings">⚙️<span>Lainnya</span></a>
   </nav>
 
-  <!-- FAB (Mobile Only) -->
-  <button onclick="window.openTransactionForm()" class="md:hidden fixed right-4 bottom-20 w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl shadow-lg z-30 flex items-center justify-center">＋</button>
+  <button onclick="window.openTransactionForm()" class="md:hidden fixed right-4 bottom-20 w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl shadow-lg z-30">＋</button>
 </div>
 
 <div id="modalRoot"></div>
-<div id="toast" class="fixed bottom-24 md:bottom-4 right-4 z-50 space-y-2 max-w-sm"></div>
+<div id="toast" class="fixed bottom-24 md:bottom-4 right-4 z-50 space-y-2"></div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -180,7 +154,6 @@ const db = getFirestore(app);
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     window.currentUser = user;
-    document.getElementById('headerUserMobile').textContent = user.displayName || user.email;
     document.getElementById('sidebarUser').textContent = user.displayName || user.email;
     await loadUserData(user.uid);
     showApp();
@@ -221,7 +194,7 @@ async function saveUserData(uid) {
   } catch (err) {
     console.error('Save error:', err);
     updateSyncStatus('Error', 'bg-red-500');
-    window.toast('Gagal menyimpan ke cloud', 'error');
+    toast('Gagal menyimpan', 'error');
   }
 }
 
@@ -243,81 +216,55 @@ window.switchAuthTab = function(tab) {
   document.getElementById('tabRegister').classList.toggle('border-b-2', !isLogin);
   document.getElementById('tabRegister').classList.toggle('border-blue-600', !isLogin);
   document.getElementById('tabRegister').classList.toggle('muted', isLogin);
-  document.getElementById('loginError').classList.add('hidden');
-  document.getElementById('regError').classList.add('hidden');
 };
 
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPass').value;
-  const errEl = document.getElementById('loginError');
-  
-  // Validasi email
-  if (!email.includes('@') || !email.includes('.')) {
-    errEl.textContent = '️ Masukkan email yang valid (contoh: nama@email.com)';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  
-  try { 
-    await signInWithEmailAndPassword(auth, email, password); 
-  } catch (err) { 
-    errEl.textContent = translateAuthError(err.code); 
-    errEl.classList.remove('hidden'); 
-  }
+  try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value.trim(), document.getElementById('loginPass').value); } 
+  catch (err) { document.getElementById('loginError').textContent = err.message; document.getElementById('loginError').classList.remove('hidden'); }
 });
 
 document.getElementById('registerForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const name = document.getElementById('regName').value.trim();
-  const email = document.getElementById('regEmail').value.trim();
-  const password = document.getElementById('regPass').value;
-  const errEl = document.getElementById('regError');
-  
-  // Validasi email
-  if (!email.includes('@') || !email.includes('.')) {
-    errEl.textContent = '⚠️ Masukkan email yang valid (contoh: nama@email.com)';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(cred.user, { displayName: name });
-    window.toast('✅ Akun berhasil dibuat! Silakan login.', 'success');
-    // Auto switch to login
-    setTimeout(() => {
-      switchAuthTab('login');
-      document.getElementById('loginEmail').value = email;
-    }, 1500);
-  } catch (err) { 
-    errEl.textContent = translateAuthError(err.code); 
-    errEl.classList.remove('hidden'); 
-  }
+    const cred = await createUserWithEmailAndPassword(auth, document.getElementById('regEmail').value.trim(), document.getElementById('regPass').value);
+    await updateProfile(cred.user, { displayName: document.getElementById('regName').value.trim() });
+    toast('Akun berhasil dibuat!', 'success');
+  } catch (err) { document.getElementById('regError').textContent = err.message; document.getElementById('regError').classList.remove('hidden'); }
 });
 
-function translateAuthError(code) {
-  const errors = { 
-    'auth/user-not-found': '❌ Email tidak terdaftar. Silakan daftar terlebih dahulu.', 
-    'auth/wrong-password': '❌ Password salah. Coba lagi atau reset password.', 
-    'auth/invalid-email': '❌ Format email tidak valid.', 
-    'auth/email-already-in-use': ' Email sudah dipakai. Silakan login atau gunakan email lain.', 
-    'auth/weak-password': '❌ Password minimal 6 karakter.', 
-    'auth/invalid-credential': '❌ Email atau password salah.' 
-  };
-  return errors[code] || 'Terjadi kesalahan: ' + code;
-}
-
-window.logout = async function() { if (!confirm('Keluar dari aplikasi?')) return; await signOut(auth); };
-window.showApp = function() { document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('appScreen').classList.remove('hidden'); if (!location.hash) location.hash = '#/'; window.route(); };
+window.logout = async function() { if (!confirm('Keluar?')) return; await signOut(auth); };
+window.showApp = function() { 
+  document.getElementById('loginScreen').classList.add('hidden'); 
+  document.getElementById('appScreen').classList.remove('hidden'); 
+  if (!location.hash) location.hash = '#/'; 
+  window.route(); 
+};
 
 function defaultDB() {
   return {
     user: { name: 'User', currency: 'Rp' },
-    accounts: [ { id:'a1', name:'Cash', type:'cash', opening_balance:0, balance:0, color:'#10b981' }, { id:'a2', name:'Bank BCA', type:'bank', opening_balance:0, balance:0, color:'#3b82f6' }, { id:'a3', name:'GoPay', type:'ewallet', opening_balance:0, balance:0, color:'#0ea5e9' } ],
-    categories: [ { id:'c1', name:'Gaji', type:'income', color:'#10b981', icon:'💼' }, { id:'c2', name:'Bonus', type:'income', color:'#22c55e', icon:'' }, { id:'c3', name:'Freelance', type:'income', color:'#14b8a6', icon:'💻' }, { id:'c10', name:'Makanan', type:'expense', color:'#ef4444', icon:'🍔' }, { id:'c11', name:'Transportasi', type:'expense', color:'#f97316', icon:'' }, { id:'c12', name:'Belanja', type:'expense', color:'#eab308', icon:'🛍️' }, { id:'c13', name:'Tagihan', type:'expense', color:'#a855f7', icon:'📄' }, { id:'c16', name:'Hiburan', type:'expense', color:'#ec4899', icon:'🎬' }, { id:'c22', name:'Lainnya', type:'expense', color:'#78716c', icon:'' }, { id:'c30', name:'Dana Darurat', type:'saving', color:'#6366f1', icon:'🛟' }, { id:'c32', name:'Tabungan Liburan', type:'saving', color:'#06b6d4', icon:'🏖️' }, { id:'c33', name:'Tabungan Lainnya', type:'saving', color:'#10b981', icon:'🏦' } ],
-    transactions: [], savings_goals: [], transfers: [], settings: { theme: 'light' }
+    accounts: [
+      { id:'a1', name:'Cash', type:'cash', opening_balance:0, balance:0, color:'#10b981' },
+      { id:'a2', name:'Bank BCA', type:'bank', opening_balance:0, balance:0, color:'#3b82f6' },
+      { id:'a3', name:'GoPay', type:'ewallet', opening_balance:0, balance:0, color:'#0ea5e9' }
+    ],
+    categories: [
+      { id:'c1', name:'Gaji', type:'income', color:'#10b981', icon:'💼' },
+      { id:'c2', name:'Bonus', type:'income', color:'#22c55e', icon:'' },
+      { id:'c10', name:'Makanan', type:'expense', color:'#ef4444', icon:'🍔' },
+      { id:'c11', name:'Transportasi', type:'expense', color:'#f97316', icon:'' },
+      { id:'c12', name:'Belanja', type:'expense', color:'#eab308', icon:'🛍️' },
+      { id:'c13', name:'Tagihan', type:'expense', color:'#a855f7', icon:'📄' },
+      { id:'c16', name:'Hiburan', type:'expense', color:'#ec4899', icon:'🎬' },
+      { id:'c30', name:'Dana Darurat', type:'saving', color:'#6366f1', icon:'🛟' },
+      { id:'c33', name:'Tabungan Lainnya', type:'saving', color:'#10b981', icon:'🏦' }
+    ],
+    transactions: [],
+    budgets: [],
+    savings_goals: [],
+    recurring: [],
+    settings: { theme: 'light' }
   };
 }
 
@@ -331,19 +278,18 @@ const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00')-new Date(a+'T00
 const esc = s => String(s||'').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 window.toast = function(msg, type) {
-  type = type || 'info';
   const colors = { info:'bg-blue-600', success:'bg-emerald-600', error:'bg-red-600', warn:'bg-amber-600' };
   const el = document.createElement('div');
   el.className = colors[type] + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm fade-in';
   el.textContent = msg;
   document.getElementById('toast').appendChild(el);
-  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(() => el.remove(), 300); }, 2800);
+  setTimeout(() => { el.style.opacity='0'; setTimeout(() => el.remove(), 300); }, 2800);
 };
 
 window.confirmDialog = function(title, message) {
   return new Promise(resolve => {
     window.openModal('<h3 class="text-lg font-bold mb-2">' + esc(title) + '</h3><p class="muted text-sm mb-4">' + esc(message) + '</p><div class="flex justify-end gap-2"><button class="px-4 py-2 rounded-lg border" data-close>Batal</button><button class="px-4 py-2 rounded-lg bg-red-600 text-white" id="confirmYes">Ya</button></div>', { 
-      onMount: root => { root.querySelector('#confirmYes').onclick = () => { window.closeModal(); resolve(true); }; }, onClose: () => resolve(false)
+      onMount: root => { root.querySelector('#confirmYes').onclick = () => { window.closeModal(); resolve(true); }; }
     });
   });
 };
@@ -351,10 +297,9 @@ window.confirmDialog = function(title, message) {
 window.openModal = function(html, opts) {
   opts = opts || {};
   const root = document.getElementById('modalRoot');
-  root.innerHTML = '<div class="fixed inset-0 z-40 modal-bg flex items-end md:items-center justify-center p-0 md:p-4"><div class="card rounded-t-3xl md:rounded-2xl shadow-2xl w-full md:max-w-lg max-h-[90vh] overflow-auto fade-in p-6">' + html + '</div></div>';
+  root.innerHTML = '<div class="fixed inset-0 z-40 modal-bg flex items-center justify-center p-4"><div class="card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto fade-in p-6">' + html + '</div></div>';
   const box = root.querySelector('.card');
-  box.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { window.closeModal(); if(opts.onClose) opts.onClose(); });
-  root.addEventListener('click', e => { if(e.target === root.firstElementChild) { window.closeModal(); if(opts.onClose) opts.onClose(); } }, { once:true });
+  box.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { window.closeModal(); });
   if(opts.onMount) opts.onMount(box);
 };
 window.closeModal = function() { document.getElementById('modalRoot').innerHTML = ''; };
@@ -364,23 +309,33 @@ function recomputeBalances(db) {
   db.transactions.filter(t => t.status === 'done').forEach(t => {
     const acc = db.accounts.find(a => a.id === t.account_id);
     if(!acc) return;
-    if(t.type === 'income') acc.balance += Number(t.amount);
+    if(t.type === 'income' || t.type === 'saving') acc.balance += Number(t.amount);
     else if(t.type === 'expense') acc.balance -= Number(t.amount);
   });
 }
-function getTotalAllocated(db) { return db.savings_goals.reduce((s,g) => s + Number(g.current||0), 0); }
-function getAvailableBalance(db) { return Math.max(0, window.DB.accounts.reduce((s,a) => s + Number(a.balance||0), 0) - getTotalAllocated(window.DB)); }
 
-const routes = { '': { title:'Dashboard', render: renderDashboard }, 'transactions': { title:'Transaksi', render: renderTransactions }, 'savings': { title:'Tabungan', render: renderSavings }, 'settings': { title:'Pengaturan', render: renderSettings } };
+const routes = {
+  '': { title:'Dashboard', render: renderDashboard },
+  'transactions': { title:'Transaksi', render: renderTransactions },
+  'calendar': { title:'Kalender', render: renderCalendar },
+  'budget': { title:'Budget', render: renderBudget },
+  'savings': { title:'Tabungan', render: renderSavings },
+  'accounts': { title:'Rekening', render: renderAccounts },
+  'recurring': { title:'Transaksi Berulang', render: renderRecurring },
+  'report/daily': { title:'Laporan Harian', render: renderDailyReport },
+  'report/monthly': { title:'Laporan Bulanan', render: renderMonthlyReport },
+  'report/compare': { title:'Perbandingan', render: renderCompare },
+  'analysis': { title:'Analisis', render: renderAnalysis },
+  'categories': { title:'Kategori', render: renderCategories },
+  'settings': { title:'Pengaturan', render: renderSettings }
+};
 
 window.route = function() {
   const hash = (location.hash || '#/').slice(2);
   const r = routes[hash] || routes[''];
-  document.querySelectorAll('.nav-item, .bnav').forEach(el => {
-    const isActive = el.dataset.route === hash;
-    el.classList.toggle('active', isActive);
-    el.classList.toggle('text-blue-600', isActive);
-    el.classList.toggle('muted', !isActive);
+  document.getElementById('pageTitle').textContent = r.title;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.route === hash);
   });
   const c = document.getElementById('content');
   c.classList.remove('fade-in'); void c.offsetWidth; c.classList.add('fade-in');
@@ -389,64 +344,58 @@ window.route = function() {
 };
 window.addEventListener('hashchange', window.route);
 
+// ============ DASHBOARD ============
 function renderDashboard() {
-  const isMobile = window.innerWidth < 768;
   const cm = monthISO();
   const txs = window.DB.transactions.filter(t => t.transaction_date.startsWith(cm) && t.status === 'done');
   const income = txs.filter(t => t.type === 'income').reduce((s,t) => s + Number(t.amount), 0);
   const expense = txs.filter(t => t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
   const saving = txs.filter(t => t.type === 'saving').reduce((s,t) => s + Number(t.amount), 0);
   const totalBalance = window.DB.accounts.reduce((s,a) => s + Number(a.balance||0), 0);
-  const totalAllocated = getTotalAllocated(window.DB);
-  const availableBalance = getAvailableBalance(window.DB);
 
-  let html = '<div class="mb-4"><h1 class="text-2xl font-bold">Dashboard</h1><p class="muted text-sm">' + new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'}) + '</p></div>';
-  html += '<div class="card rounded-2xl p-4 mb-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white"><div class="text-xs opacity-80 mb-1">💰 Saldo Total</div><div class="text-3xl font-bold mb-3">' + fmt(totalBalance) + '</div><div class="grid grid-cols-2 gap-2"><div class="bg-white/10 rounded-lg p-2"><div class="text-xs opacity-80">🏦 Dialokasikan</div><div class="text-sm font-bold">' + fmt(totalAllocated) + '</div></div><div class="bg-white/10 rounded-lg p-2"><div class="text-xs opacity-80">✅ Siap Pakai</div><div class="text-sm font-bold">' + fmt(availableBalance) + '</div></div></div></div>';
-
-  if (isMobile) {
-    html += '<div class="grid grid-cols-2 gap-2 mb-4"><div class="card rounded-xl p-3"><div class="text-xs muted">📥 Pemasukan</div><div class="text-lg font-bold text-emerald-600">' + fmt(income) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">📤 Pengeluaran</div><div class="text-lg font-bold text-red-600">' + fmt(expense) + '</div></div></div>';
-    html += '<div class="grid grid-cols-2 gap-2 mb-4"><button onclick="window.openTransactionForm()" class="card rounded-xl p-4 text-center hover:bg-black/5"><div class="text-2xl mb-1">📝</div><div class="text-sm font-semibold">Catat Transaksi</div></button><a href="#/transactions" class="card rounded-xl p-4 text-center hover:bg-black/5"><div class="text-2xl mb-1">📋</div><div class="text-sm font-semibold">Lihat Semua</div></a></div>';
-  } else {
-    html += '<div class="grid grid-cols-4 gap-3 mb-4"><div class="card rounded-xl p-3"><div class="text-xs muted"> Pemasukan</div><div class="text-lg font-bold text-emerald-600">' + fmt(income) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">📤 Pengeluaran</div><div class="text-lg font-bold text-red-600">' + fmt(expense) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">🏦 Tabungan</div><div class="text-lg font-bold text-indigo-600">' + fmt(saving) + '</div></div><div class="card rounded-xl p-3"><div class="text-xs muted">💳 Transaksi</div><div class="text-lg font-bold">' + txs.length + '</div></div></div>';
-  }
-  html += '<div class="card rounded-2xl p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-semibold">Transaksi Terbaru</h3><a href="#/transactions" class="text-blue-600 text-sm">Lihat →</a></div>' + renderRecentTx() + '</div>';
-  document.getElementById('content').innerHTML = html;
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="card rounded-xl p-4"><div class="text-xs muted mb-1">💰 Saldo Total</div><div class="text-2xl font-bold">${fmt(totalBalance)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted mb-1"> Pemasukan</div><div class="text-2xl font-bold text-emerald-600">${fmt(income)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted mb-1">📤 Pengeluaran</div><div class="text-2xl font-bold text-red-600">${fmt(expense)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted mb-1">🏦 Tabungan</div><div class="text-2xl font-bold text-indigo-600">${fmt(saving)}</div></div>
+    </div>
+    <div class="card rounded-xl p-4"><h3 class="font-semibold mb-3">Transaksi Terbaru</h3>${renderRecentTx()}</div>
+  `;
 }
 
 function renderRecentTx() {
   const recent = window.DB.transactions.slice().sort((a,b) => b.transaction_date.localeCompare(a.transaction_date)).slice(0,5);
-  if(recent.length === 0) return '<div class="text-center py-6 muted text-sm">Belum ada transaksi</div>';
+  if(recent.length === 0) return '<div class="text-center py-6 muted">Belum ada transaksi</div>';
   return recent.map(t => {
     const cat = window.DB.categories.find(c => c.id === t.category_id);
-    const chip = t.type === 'income' ? 'chip-inc' : t.type === 'expense' ? 'chip-exp' : 'chip-sav';
     const color = t.type === 'income' ? 'text-emerald-600' : t.type === 'expense' ? 'text-red-600' : 'text-indigo-600';
-    const sign = t.type === 'income' ? '+' : t.type === 'expense' ? '-' : '';
-    return '<div class="flex items-center gap-2 p-2 border-b last:border-0"><div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + (cat?.color||'#888') + '22">' + (cat?.icon||'💸') + '</div><div class="flex-1 min-w-0"><div class="font-medium text-sm truncate">' + esc(t.description||cat?.name||'-') + '</div><div class="text-xs muted">' + fmtDate(t.transaction_date) + ' • <span class="chip ' + chip + '">' + (cat?.name||'-') + '</span></div></div><div class="font-bold text-sm ' + color + '">' + sign + fmt(t.amount) + '</div></div>';
+    return `<div class="flex items-center gap-3 p-2 border-b last:border-0"><div class="font-bold ${color}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div><div class="flex-1">${esc(t.description||cat?.name)}</div><div class="text-xs muted">${fmtDate(t.transaction_date)}</div></div>`;
   }).join('');
 }
 
-let txFilter = { search:'', type:'' };
+// ============ TRANSACTIONS ============
 function renderTransactions() {
-  document.getElementById('content').innerHTML = '<div class="mb-4"><h1 class="text-2xl font-bold">Transaksi</h1><p class="muted text-sm">Semua transaksi Anda</p></div><div class="card rounded-xl p-3 mb-4 space-y-2"><input id="fSearch" placeholder="🔍 Cari..." class="w-full rounded-lg px-3 py-2 text-sm" value="' + esc(txFilter.search) + '"/><select id="fType" class="w-full rounded-lg px-3 py-2 text-sm"><option value="">Semua jenis</option><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option><option value="saving">Tabungan</option></select></div><div class="card rounded-xl overflow-hidden"><div id="txList"></div></div>';
-  document.getElementById('fSearch').addEventListener('input', e => { txFilter.search = e.target.value; renderTxList(); });
-  document.getElementById('fType').addEventListener('change', e => { txFilter.type = e.target.value; renderTxList(); });
-  renderTxList();
-}
-
-function renderTxList() {
-  let list = window.DB.transactions.slice();
-  if(txFilter.search) list = list.filter(t => (t.description||'').toLowerCase().includes(txFilter.search.toLowerCase()));
-  if(txFilter.type) list = list.filter(t => t.type === txFilter.type);
-  list.sort((a,b) => b.transaction_date.localeCompare(a.transaction_date));
-  const box = document.getElementById('txList');
-  if(list.length === 0) { box.innerHTML = '<div class="text-center py-12 muted text-sm">Tidak ada transaksi</div>'; return; }
-  box.innerHTML = list.map(t => {
-    const cat = window.DB.categories.find(c => c.id === t.category_id);
-    const chip = t.type === 'income' ? 'chip-inc' : t.type === 'expense' ? 'chip-exp' : 'chip-sav';
-    const color = t.type === 'income' ? 'text-emerald-600' : t.type === 'expense' ? 'text-red-600' : 'text-indigo-600';
-    const sign = t.type === 'income' ? '+' : t.type === 'expense' ? '-' : '';
-    return '<div class="flex items-center gap-2 p-3 border-b last:border-0"><div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + (cat?.color||'#888') + '22">' + (cat?.icon||'💸') + '</div><div class="flex-1 min-w-0"><div class="font-medium text-sm truncate">' + esc(t.description||cat?.name||'-') + '</div><div class="text-xs muted">' + fmtDate(t.transaction_date) + ' • <span class="chip ' + chip + '">' + (cat?.name||'-') + '</span></div></div><div class="text-right flex-shrink-0"><div class="font-bold text-sm ' + color + '">' + sign + fmt(t.amount) + '</div><div class="flex gap-1 justify-end mt-1"><button onclick="window.openTransactionForm(\'' + t.id + '\')" class="text-xs p-1">✏️</button><button onclick="window.deleteTx(\'' + t.id + '\')" class="text-xs p-1">🗑️</button></div></div></div>';
-  }).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="card rounded-xl p-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Daftar Transaksi</h3>
+        <button onclick="window.openTransactionForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="border-b bg-gray-50 dark:bg-gray-800">
+            <tr><th class="text-left py-2 px-2">Tanggal</th><th class="text-left py-2 px-2">Kategori</th><th class="text-left py-2 px-2">Deskripsi</th><th class="text-right py-2 px-2">Nominal</th><th class="text-center py-2 px-2">Aksi</th></tr>
+          </thead>
+          <tbody>${window.DB.transactions.slice().sort((a,b)=>b.transaction_date.localeCompare(a.transaction_date)).map(t => {
+            const cat = window.DB.categories.find(c => c.id === t.category_id);
+            const color = t.type === 'income' ? 'text-emerald-600' : t.type === 'expense' ? 'text-red-600' : 'text-indigo-600';
+            return `<tr class="border-b last:border-0"><td class="py-2 px-2">${fmtDate(t.transaction_date)}</td><td class="py-2 px-2">${cat?.icon||''} ${esc(cat?.name||'-')}</td><td class="py-2 px-2">${esc(t.description||'-')}</td><td class="text-right py-2 px-2 font-bold ${color}">${fmt(t.amount)}</td><td class="text-center py-2 px-2"><button onclick="window.deleteTx('${t.id}')" class="text-red-500 hover:underline text-xs">Hapus</button></td></tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 window.deleteTx = async function(id) {
@@ -460,126 +409,332 @@ window.deleteTx = async function(id) {
 
 window.openTransactionForm = function(id) {
   const t = id ? window.DB.transactions.find(x => x.id === id) : null;
-  const isEdit = !!t;
-  const html = '<h3 class="text-lg font-bold mb-4">' + (isEdit ? 'Edit' : 'Tambah') + ' Transaksi</h3><form id="txForm" class="space-y-3"><div class="grid grid-cols-3 gap-2"><label class="cursor-pointer"><input type="radio" name="type" value="income" class="hidden peer" ' + ((t?.type==='income')?'checked':'') + '/><div class="peer-checked:ring-2 peer-checked:ring-blue-500 p-2 rounded-lg border text-center text-xs">📥 Masuk</div></label><label class="cursor-pointer"><input type="radio" name="type" value="expense" class="hidden peer" ' + ((!isEdit)||(t?.type==='expense')?'checked':'') + '/><div class="peer-checked:ring-2 peer-checked:ring-blue-500 p-2 rounded-lg border text-center text-xs">📤 Keluar</div></label><label class="cursor-pointer"><input type="radio" name="type" value="saving" class="hidden peer" ' + ((t?.type==='saving')?'checked':'') + '/><div class="peer-checked:ring-2 peer-checked:ring-blue-500 p-2 rounded-lg border text-center text-xs">🏦 Tabung</div></label></div><div><label class="text-xs muted">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded-lg px-3 py-2" value="' + (t?.amount||'') + '" placeholder="0"/></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Tanggal</label><input name="date" type="date" required class="w-full rounded-lg px-3 py-2" value="' + (t?.transaction_date||todayISO()) + '"/></div><div><label class="text-xs muted">Rekening</label><select name="account_id" class="w-full rounded-lg px-3 py-2">' + window.DB.accounts.map(a => '<option value="' + a.id + '" ' + (t?.account_id===a.id?'selected':'') + '>' + esc(a.name) + '</option>').join('') + '</select></div></div><div><label class="text-xs muted">Kategori</label><select name="category_id" id="catSel" class="w-full rounded-lg px-3 py-2"></select></div><div><label class="text-xs muted">Deskripsi</label><input name="description" class="w-full rounded-lg px-3 py-2" value="' + esc(t?.description||'') + '" placeholder="Contoh: Makan siang"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded-lg border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold">Simpan</button></div></form>';
-  
-  window.openModal(html, { onMount: root => {
-    const form = root.querySelector('#txForm');
-    const catSel = root.querySelector('#catSel');
-    const refreshCats = () => {
-      const type = form.querySelector('input[name=type]:checked').value;
-      const cats = window.DB.categories.filter(c => c.type === type);
-      catSel.innerHTML = cats.map(c => '<option value="' + c.id + '" ' + (t?.category_id===c.id?'selected':'') + '>' + c.icon + ' ' + esc(c.name) + '</option>').join('');
-    };
-    refreshCats();
-    form.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', refreshCats));
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      const amount = Number(fd.get('amount'));
-      if(!amount || amount <= 0) { window.toast('Nominal harus > 0','error'); return; }
-      const data = { account_id: fd.get('account_id'), category_id: fd.get('category_id'), type: fd.get('type'), amount, transaction_date: fd.get('date'), description: fd.get('description')||'', status: 'done' };
-      if(isEdit) Object.assign(t, data);
-      else window.DB.transactions.push({ id: uid('t'), ...data });
-      recomputeBalances(window.DB);
-      await window.saveDB(window.currentUser.uid);
-      window.closeModal(); window.toast(isEdit ? 'Diperbarui' : 'Ditambahkan','success');
-      window.route();
-    });
-  }});
+  window.openModal('<h3 class="text-lg font-bold mb-4">' + (t?'Edit':'Tambah') + ' Transaksi</h3><form id="txForm" class="space-y-3"><div class="grid grid-cols-3 gap-2"><label><input type="radio" name="type" value="income" class="hidden peer" '+(t?.type==='income'?'checked':'')+'/><div class="peer-checked:ring-2 peer-checked:ring-emerald-500 p-2 rounded border text-center text-xs">📥 Pemasukan</div></label><label><input type="radio" name="type" value="expense" class="hidden peer" '+(t?.type==='expense'?'checked':'')+'/><div class="peer-checked:ring-2 peer-checked:ring-red-500 p-2 rounded border text-center text-xs">📤 Pengeluaran</div></label><label><input type="radio" name="type" value="saving" class="hidden peer" '+(t?.type==='saving'?'checked':'')+'/><div class="peer-checked:ring-2 peer-checked:ring-indigo-500 p-2 rounded border text-center text-xs">🏦 Tabungan</div></label></div><div><label class="text-xs muted">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="'+(t?.amount||'')+'"/></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="'+(t?.transaction_date||todayISO())+'"/></div><div><label class="text-xs muted">Rekening</label><select name="account_id" class="w-full rounded px-3 py-2">'+window.DB.accounts.map(a=>'<option value="'+a.id+'" '+(t?.account_id===a.id?'selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div></div><div><label class="text-xs muted">Kategori</label><select name="category_id" id="catSel" class="w-full rounded px-3 py-2"></select></div><div><label class="text-xs muted">Deskripsi</label><input name="description" class="w-full rounded px-3 py-2" value="'+esc(t?.description||'')+'"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Simpan</button></div></form>', {
+    onMount: root => {
+      const form = root.querySelector('#txForm');
+      const catSel = root.querySelector('#catSel');
+      const refreshCats = () => {
+        const type = form.querySelector('input[name=type]:checked').value;
+        catSel.innerHTML = window.DB.categories.filter(c => c.type === type).map(c => '<option value="'+c.id+'" '+(t?.category_id===c.id?'selected':'')+'>'+c.icon+' '+esc(c.name)+'</option>').join('');
+      };
+      refreshCats();
+      form.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', refreshCats));
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const data = { account_id: fd.get('account_id'), category_id: fd.get('category_id'), type: fd.get('type'), amount: Number(fd.get('amount')), transaction_date: fd.get('date'), description: fd.get('description')||'', status: 'done' };
+        if(t) Object.assign(t, data); else window.DB.transactions.push({ id: uid('t'), ...data });
+        recomputeBalances(window.DB);
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Disimpan','success'); window.route();
+      });
+    }
+  });
 };
 
-function renderSavings() {
-  const goals = window.DB.savings_goals;
-  const totalBalance = window.DB.accounts.reduce((s,a) => s + Number(a.balance||0), 0);
-  const totalAllocated = getTotalAllocated(window.DB);
-  let html = '<div class="mb-4"><h1 class="text-2xl font-bold">Target Tabungan</h1><p class="muted text-sm">Alokasi virtual dari saldo Anda</p></div><div class="card rounded-xl p-4 mb-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20"><div class="grid grid-cols-2 gap-2 text-center"><div><div class="text-xs muted">Saldo Fisik</div><div class="text-lg font-bold text-blue-600">' + fmt(totalBalance) + '</div></div><div><div class="text-xs muted">Dialokasikan</div><div class="text-lg font-bold text-purple-600">' + fmt(totalAllocated) + '</div></div></div></div><button onclick="window.openGoalForm()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold mb-4">＋ Target Baru</button><div class="space-y-3">';
-  if(goals.length === 0) html += '<div class="card rounded-xl p-8 text-center muted text-sm">Belum ada target tabungan</div>';
-  goals.forEach(g => {
-    const pct = g.target > 0 ? (g.current/g.target*100) : 0;
-    const days = daysBetween(todayISO(), g.deadline);
-    const monthly = days > 0 ? Math.ceil((g.target-g.current)/(days/30)) : 0;
-    const color = pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-indigo-500' : 'bg-amber-500';
-    html += '<div class="card rounded-xl p-4"><div class="flex items-start justify-between mb-2"><div class="flex-1 min-w-0"><div class="font-bold truncate">' + esc(g.name) + '</div><div class="text-xs muted">Target: ' + fmt(g.target) + '</div></div><div class="flex gap-1"><button onclick="window.addSaving(\'' + g.id + '\')" class="p-2">💵</button><button onclick="window.openGoalForm(\'' + g.id + '\')" class="p-2">✏️</button><button onclick="window.deleteGoal(\'' + g.id + '\')" class="p-2">🗑️</button></div></div><div class="flex items-baseline gap-1 mb-2"><div class="text-xl font-bold">' + fmt(g.current) + '</div><div class="text-xs muted">/ ' + fmt(g.target) + '</div></div><div class="progress mb-2"><div class="' + color + '" style="width:' + Math.min(100,pct) + '%"></div></div><div class="flex justify-between text-xs muted"><span>' + pct.toFixed(1) + '% progress</span><span>' + (days > 0 ? days + ' hari lagi' : 'Terlewat') + '</span></div>';
-    if(days > 0) html += '<div class="text-xs mt-2 p-2 rounded bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400"><b>~' + fmt(monthly) + '/bulan</b> untuk mencapai target</div>';
-    html += '</div>';
-  });
+// ============ CALENDAR ============
+let calMonth = new Date();
+function renderCalendar() {
+  const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+  const last = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0);
+  let html = `<div class="flex justify-between items-center mb-4"><button onclick="calMonth.setMonth(calMonth.getMonth()-1);renderCalendar()" class="px-3 py-1 rounded border">‹</button><h3 class="font-semibold text-lg">${calMonth.toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</h3><button onclick="calMonth.setMonth(calMonth.getMonth()+1);renderCalendar()" class="px-3 py-1 rounded border">›</button></div><div class="grid grid-cols-7 gap-1 text-center text-xs mb-2"><div>Min</div><div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div></div><div class="grid grid-cols-7 gap-1">`;
+  for(let i=0;i<first.getDay();i++) html += '<div></div>';
+  for(let d=1; d<=last.getDate(); d++) {
+    const date = dateISO(new Date(calMonth.getFullYear(), calMonth.getMonth(), d));
+    const txs = window.DB.transactions.filter(t => t.transaction_date === date && t.status === 'done');
+    const inc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+    const exp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+    const bg = inc > exp ? 'bg-emerald-100 dark:bg-emerald-900/30' : exp > 0 ? 'bg-red-100 dark:bg-red-900/30' : '';
+    html += `<div class="p-2 rounded ${bg} min-h-[80px]"><div class="font-semibold">${d}</div>${inc?`<div class="text-xs text-emerald-600">+${fmt(inc)}</div>`:''}${exp?`<div class="text-xs text-red-600">-${fmt(exp)}</div>`:''}</div>`;
+  }
   html += '</div>';
-  document.getElementById('content').innerHTML = html;
+  document.getElementById('content').innerHTML = `<div class="card rounded-xl p-4">${html}</div>`;
 }
 
-window.openGoalForm = function(id) {
-  const g = id ? window.DB.savings_goals.find(x => x.id === id) : null;
-  const html = '<h3 class="text-lg font-bold mb-4">' + (g ? 'Edit' : 'Tambah') + ' Target</h3><form id="gForm" class="space-y-3"><div><label class="text-xs muted">Nama</label><input name="name" required class="w-full rounded-lg px-3 py-2" value="' + esc(g?.name||'') + '"/></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Target</label><input name="target" type="number" min="1" required class="w-full rounded-lg px-3 py-2" value="' + (g?.target||'') + '"/></div><div><label class="text-xs muted">Saat ini</label><input name="current" type="number" min="0" required class="w-full rounded-lg px-3 py-2" value="' + (g?.current||0) + '"/></div></div><div><label class="text-xs muted">Deadline</label><input name="deadline" type="date" required class="w-full rounded-lg px-3 py-2" value="' + (g?.deadline||'') + '"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded-lg border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold">Simpan</button></div></form>';
-  window.openModal(html, { onMount: root => {
-    root.querySelector('#gForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const data = { name: fd.get('name'), target: Number(fd.get('target')), current: Number(fd.get('current')), deadline: fd.get('deadline') };
-      if(g) Object.assign(g, data); else window.DB.savings_goals.push({ id: uid('g'), ...data });
-      await window.saveDB(window.currentUser.uid);
-      window.closeModal(); window.toast('Tersimpan','success'); renderSavings();
-    });
-  }});
+// ============ BUDGET ============
+function renderBudget() {
+  const cm = monthISO();
+  document.getElementById('content').innerHTML = `
+    <div class="card rounded-xl p-4 mb-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Budget Bulan Ini</h3>
+        <button onclick="window.openBudgetForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
+      </div>
+      <div class="space-y-3">${window.DB.budgets.filter(b=>b.month===cm).map(b=>{
+        const cat = window.DB.categories.find(c=>c.id===b.category_id);
+        const spent = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&t.category_id===b.category_id&&t.status==='done').reduce((s,t)=>s+Number(t.amount),0);
+        const pct = Math.min(100, (spent/b.amount)*100);
+        const color = pct>=100?'bg-red-500':pct>=80?'bg-amber-500':'bg-emerald-500';
+        return `<div class="border rounded-lg p-3"><div class="flex justify-between mb-2"><span>${cat?.icon||''} ${esc(cat?.name)}</span><span class="text-sm muted">${fmt(spent)}/${fmt(b.amount)}</span></div><div class="progress"><div class="${color}" style="width:${pct}%"></div></div><div class="text-xs mt-1">${pct.toFixed(0)}% terpakai</div></div>`;
+      }).join('')||'<div class="text-center muted py-8">Belum ada budget</div>'}</div>
+    </div>
+  `;
+}
+
+window.openBudgetForm = function() {
+  window.openModal('<h3 class="text-lg font-bold mb-4">Tambah Budget</h3><form id="bForm" class="space-y-3"><div><label class="text-xs muted">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">'+window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'">'+c.icon+' '+esc(c.name)+'</option>').join('')+'</select></div><div><label class="text-xs muted">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="'+monthISO()+'"/></div><div><label class="text-xs muted">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Simpan</button></div></form>', {
+    onMount: root => {
+      root.querySelector('#bForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        window.DB.budgets.push({ id: uid('b'), category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) });
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Budget ditambahkan','success'); renderBudget();
+      });
+    }
+  });
+};
+
+// ============ SAVINGS ============
+function renderSavings() {
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4 flex justify-between items-center"><h3 class="font-semibold text-lg">Target Tabungan</h3><button onclick="window.openGoalForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Target Baru</button></div>
+    <div class="grid md:grid-cols-2 gap-4">${window.DB.savings_goals.map(g=>{
+      const pct = g.target>0?(g.current/g.target*100):0;
+      return `<div class="card rounded-xl p-4"><div class="flex justify-between mb-2"><div class="font-bold">${esc(g.name)}</div><button onclick="window.deleteGoal('${g.id}')" class="text-red-500 text-xs">Hapus</button></div><div class="text-2xl font-bold mb-2">${fmt(g.current)}<span class="text-sm muted">/${fmt(g.target)}</span></div><div class="progress mb-2"><div class="${pct>=100?'bg-emerald-500':'bg-indigo-500'}" style="width:${Math.min(100,pct)}%"></div></div><div class="text-xs muted">${pct.toFixed(1)}% • ${daysBetween(todayISO(),g.deadline)} hari lagi</div><button onclick="window.addSaving('${g.id}')" class="mt-3 w-full bg-indigo-600 text-white py-2 rounded-lg text-sm">💵 Tambah Dana</button></div>`;
+    }).join('')||'<div class="col-span-2 text-center muted py-8">Belum ada target</div>'}</div>
+  `;
+}
+
+window.openGoalForm = function() {
+  window.openModal('<h3 class="text-lg font-bold mb-4">Target Tabungan Baru</h3><form id="gForm" class="space-y-3"><div><label class="text-xs muted">Nama</label><input name="name" required class="w-full rounded px-3 py-2"/></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Target</label><input name="target" type="number" min="1" required class="w-full rounded px-3 py-2"/></div><div><label class="text-xs muted">Saldo Awal</label><input name="current" type="number" min="0" class="w-full rounded px-3 py-2" value="0"/></div></div><div><label class="text-xs muted">Deadline</label><input name="deadline" type="date" required class="w-full rounded px-3 py-2"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Simpan</button></div></form>', {
+    onMount: root => {
+      root.querySelector('#gForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        window.DB.savings_goals.push({ id: uid('g'), name: fd.get('name'), target: Number(fd.get('target')), current: Number(fd.get('current')), deadline: fd.get('deadline') });
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Target ditambahkan','success'); renderSavings();
+      });
+    }
+  });
 };
 
 window.addSaving = function(id) {
-  const html = '<h3 class="text-lg font-bold mb-2">💵 Tambah Alokasi</h3><div class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-xs mb-3">Saldo rekening fisik tidak berubah.</div><form id="addForm" class="space-y-3"><div><label class="text-xs muted">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded-lg px-3 py-2"/></div><div><label class="text-xs muted">Tanggal</label><input name="date" type="date" required class="w-full rounded-lg px-3 py-2" value="' + todayISO() + '"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded-lg border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold">Tambah</button></div></form>';
-  window.openModal(html, { onMount: root => {
-    root.querySelector('#addForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const g = window.DB.savings_goals.find(x => x.id === id);
-      const amount = Number(fd.get('amount'));
-      g.current += amount;
-      window.DB.transactions.push({ id: uid('t'), account_id: window.DB.accounts[0].id, category_id: 'c33', type: 'saving', amount, transaction_date: fd.get('date'), description: 'Alokasi: ' + g.name, status: 'done' });
-      await window.saveDB(window.currentUser.uid);
-      window.closeModal(); window.toast('Ditambahkan','success'); renderSavings();
-    });
-  }});
+  const g = window.DB.savings_goals.find(x=>x.id===id);
+  window.openModal('<h3 class="text-lg font-bold mb-4">Tambah Dana ke '+esc(g.name)+'</h3><form id="addForm" class="space-y-3"><div><label class="text-xs muted">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div><div><label class="text-xs muted">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="'+todayISO()+'"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Tambah</button></div></form>', {
+    onMount: root => {
+      root.querySelector('#addForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const amount = Number(fd.get('amount'));
+        g.current += amount;
+        window.DB.transactions.push({ id: uid('t'), account_id: window.DB.accounts[0].id, category_id: 'c33', type: 'saving', amount, transaction_date: fd.get('date'), description: 'Tabungan: '+g.name, status: 'done' });
+        recomputeBalances(window.DB);
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Dana ditambahkan','success'); renderSavings();
+      });
+    }
+  });
 };
 
 window.deleteGoal = async function(id) {
-  if(!await window.confirmDialog('Hapus target?','Target akan dihapus.')) return;
-  window.DB.savings_goals = window.DB.savings_goals.filter(g => g.id !== id);
+  if(!await window.confirmDialog('Hapus target?')) return;
+  window.DB.savings_goals = window.DB.savings_goals.filter(g=>g.id!==id);
   await window.saveDB(window.currentUser.uid);
   window.toast('Dihapus','success'); renderSavings();
 };
 
+// ============ ACCOUNTS ============
+function renderAccounts() {
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4 flex justify-between items-center"><h3 class="font-semibold text-lg">Rekening</h3><button onclick="window.openAccountForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Rekening Baru</button></div>
+    <div class="grid md:grid-cols-3 gap-4">${window.DB.accounts.map(a=>`
+      <div class="card rounded-xl p-4"><div class="flex justify-between items-start mb-3"><div class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold" style="background:${a.color}">${a.name[0]}</div><div class="flex gap-1"><button onclick="window.openAccountForm('${a.id}')" class="p-1.5 rounded hover:bg-black/10">✏️</button><button onclick="window.deleteAccount('${a.id}')" class="p-1.5 rounded hover:bg-black/10">️</button></div></div><div class="font-semibold">${esc(a.name)}</div><div class="text-xs muted capitalize">${a.type}</div><div class="text-2xl font-bold mt-2">${fmt(a.balance)}</div><div class="text-xs muted mt-1">Saldo awal: ${fmt(a.opening_balance)}</div></div>
+    `).join('')}</div>
+  `;
+}
+
+window.openAccountForm = function(id) {
+  const a = id ? window.DB.accounts.find(x=>x.id===id) : null;
+  window.openModal('<h3 class="text-lg font-bold mb-4">'+(a?'Edit':'Tambah')+' Rekening</h3><form id="aForm" class="space-y-3"><div><label class="text-xs muted">Nama</label><input name="name" required class="w-full rounded px-3 py-2" value="'+esc(a?.name||'')+'"/></div><div><label class="text-xs muted">Tipe</label><select name="type" class="w-full rounded px-3 py-2"><option value="cash" '+(a?.type==='cash'?'selected':'')+'>Cash</option><option value="bank" '+(a?.type==='bank'?'selected':'')+'>Bank</option><option value="ewallet" '+(a?.type==='ewallet'?'selected':'')+'>E-Wallet</option></select></div><div><label class="text-xs muted">Warna</label><input name="color" type="color" class="w-full rounded px-3 py-2 h-10" value="'+(a?.color||'#3b82f6')+'"/></div><div><label class="text-xs muted">Saldo Awal</label><input name="opening_balance" type="number" class="w-full rounded px-3 py-2" value="'+(a?.opening_balance||0)+'"/></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Simpan</button></div></form>', {
+    onMount: root => {
+      root.querySelector('#aForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        if(a) { a.name = fd.get('name'); a.type = fd.get('type'); a.color = fd.get('color'); a.opening_balance = Number(fd.get('opening_balance')); }
+        else window.DB.accounts.push({ id: uid('a'), name: fd.get('name'), type: fd.get('type'), color: fd.get('color'), opening_balance: Number(fd.get('opening_balance')), balance: Number(fd.get('opening_balance')) });
+        recomputeBalances(window.DB);
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Disimpan','success'); renderAccounts();
+      });
+    }
+  });
+};
+
+window.deleteAccount = async function(id) {
+  if(window.DB.transactions.some(t=>t.account_id===id)) { window.toast('Masih ada transaksi','error'); return; }
+  if(!await window.confirmDialog('Hapus rekening?')) return;
+  window.DB.accounts = window.DB.accounts.filter(a=>a.id!==id);
+  await window.saveDB(window.currentUser.uid);
+  window.toast('Dihapus','success'); renderAccounts();
+};
+
+// ============ RECURRING ============
+function renderRecurring() {
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4 flex justify-between items-center"><h3 class="font-semibold text-lg">Transaksi Berulang</h3><button onclick="window.openRecurringForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button></div>
+    <div class="card rounded-xl overflow-hidden"><table class="w-full text-sm"><thead class="border-b bg-gray-50 dark:bg-gray-800"><tr><th class="text-left py-2 px-3">Nama</th><th class="text-left py-2 px-3">Nominal</th><th class="text-left py-2 px-3">Frekuensi</th><th class="text-left py-2 px-3">Berikutnya</th><th class="text-center py-2 px-3">Aksi</th></tr></thead><tbody>${window.DB.recurring.map(r=>`<tr class="border-b last:border-0"><td class="py-2 px-3">${esc(r.name)}</td><td class="py-2 px-3 font-bold">${fmt(r.amount)}</td><td class="py-2 px-3 text-xs">${r.frequency}</td><td class="py-2 px-3 text-xs">${fmtDate(r.next)}</td><td class="text-center py-2 px-3"><button onclick="window.runRecurring('${r.id}')" class="text-blue-600 hover:underline text-xs">Jalankan</button></td></tr>`).join('')||'<tr><td colspan="5" class="text-center py-8 muted">Belum ada transaksi berulang</td></tr>'}</tbody></table></div>
+  `;
+}
+
+window.openRecurringForm = function() {
+  window.openModal('<h3 class="text-lg font-bold mb-4">Transaksi Berulang</h3><form id="rForm" class="space-y-3"><div><label class="text-xs muted">Nama</label><input name="name" required class="w-full rounded px-3 py-2"/></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div><div><label class="text-xs muted">Frekuensi</label><select name="frequency" class="w-full rounded px-3 py-2"><option value="daily">Harian</option><option value="weekly">Mingguan</option><option value="monthly">Bulanan</option><option value="yearly">Tahunan</option></select></div></div><div><label class="text-xs muted">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">'+window.DB.categories.map(c=>'<option value="'+c.id+'">'+c.icon+' '+esc(c.name)+'</option>').join('')+'</select></div><div><label class="text-xs muted">Rekening</label><select name="account_id" class="w-full rounded px-3 py-2">'+window.DB.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')+'</select></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Mulai</label><input name="start" type="date" required class="w-full rounded px-3 py-2" value="'+todayISO()+'"/></div><div><label class="text-xs muted">Berikutnya</label><input name="next" type="date" required class="w-full rounded px-3 py-2" value="'+todayISO()+'"/></div></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Simpan</button></div></form>', {
+    onMount: root => {
+      root.querySelector('#rForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        window.DB.recurring.push({ id: uid('r'), name: fd.get('name'), amount: Number(fd.get('amount')), frequency: fd.get('frequency'), category_id: fd.get('category_id'), account_id: fd.get('account_id'), start: fd.get('start'), next: fd.get('next') });
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Disimpan','success'); renderRecurring();
+      });
+    }
+  });
+};
+
+window.runRecurring = async function(id) {
+  const r = window.DB.recurring.find(x=>x.id===id);
+  window.DB.transactions.push({ id: uid('t'), account_id: r.account_id, category_id: r.category_id, type: 'expense', amount: r.amount, transaction_date: r.next, description: r.name+' (otomatis)', status: 'done' });
+  const d = new Date(r.next);
+  if(r.frequency==='daily') d.setDate(d.getDate()+1);
+  else if(r.frequency==='weekly') d.setDate(d.getDate()+7);
+  else if(r.frequency==='monthly') d.setMonth(d.getMonth()+1);
+  else if(r.frequency==='yearly') d.setFullYear(d.getFullYear()+1);
+  r.next = dateISO(d);
+  recomputeBalances(window.DB);
+  await window.saveDB(window.currentUser.uid);
+  window.toast('Transaksi dibuat','success'); renderRecurring();
+};
+
+// ============ REPORTS ============
+function renderDailyReport() {
+  const date = todayISO();
+  const txs = window.DB.transactions.filter(t=>t.transaction_date===date&&t.status==='done');
+  const inc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const exp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const sav = txs.filter(t=>t.type==='saving').reduce((s,t)=>s+Number(t.amount),0);
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4"><h3 class="font-semibold text-lg">Laporan Harian</h3><p class="text-sm muted">${fmtDate(date)}</p></div>
+    <div class="grid grid-cols-4 gap-4 mb-4"><div class="card rounded-xl p-4"><div class="text-xs muted">Pemasukan</div><div class="text-2xl font-bold text-emerald-600">${fmt(inc)}</div></div><div class="card rounded-xl p-4"><div class="text-xs muted">Pengeluaran</div><div class="text-2xl font-bold text-red-600">${fmt(exp)}</div></div><div class="card rounded-xl p-4"><div class="text-xs muted">Tabungan</div><div class="text-2xl font-bold text-indigo-600">${fmt(sav)}</div></div><div class="card rounded-xl p-4"><div class="text-xs muted">Saldo Bersih</div><div class="text-2xl font-bold">${fmt(inc-exp-sav)}</div></div></div>
+    <div class="card rounded-xl p-4"><h4 class="font-semibold mb-3">Transaksi Hari Ini</h4>${txs.length?txs.map(t=>{const cat=window.DB.categories.find(c=>c.id===t.category_id);return `<div class="flex justify-between py-2 border-b last:border-0"><span>${cat?.icon||''} ${esc(t.description||cat?.name)}</span><span class="font-bold">${fmt(t.amount)}</span></div>`}).join(''):'<div class="text-center muted py-4">Tidak ada transaksi</div>'}</div>
+  `;
+}
+
+function renderMonthlyReport() {
+  const cm = monthISO();
+  const txs = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.status==='done');
+  const inc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const exp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const sav = txs.filter(t=>t.type==='saving').reduce((s,t)=>s+Number(t.amount),0);
+  const byCat = {};
+  txs.filter(t=>t.type==='expense').forEach(t=>{byCat[t.category_id]=(byCat[t.category_id]||0)+Number(t.amount);});
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4"><h3 class="font-semibold text-lg">Laporan Bulanan</h3><p class="text-sm muted">${new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</p></div>
+    <div class="grid grid-cols-3 gap-4 mb-4"><div class="card rounded-xl p-4"><div class="text-xs muted">Pemasukan</div><div class="text-2xl font-bold text-emerald-600">${fmt(inc)}</div></div><div class="card rounded-xl p-4"><div class="text-xs muted">Pengeluaran</div><div class="text-2xl font-bold text-red-600">${fmt(exp)}</div></div><div class="card rounded-xl p-4"><div class="text-xs muted">Tabungan</div><div class="text-2xl font-bold text-indigo-600">${fmt(sav)}</div></div></div>
+    <div class="card rounded-xl p-4 mb-4"><h4 class="font-semibold mb-3">Pengeluaran per Kategori</h4>${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cid,v])=>{const cat=window.DB.categories.find(c=>c.id===cid);const pct=exp>0?(v/exp*100).toFixed(0):0;return `<div class="mb-3"><div class="flex justify-between text-sm mb-1"><span>${cat?.icon||''} ${esc(cat?.name)}</span><span class="muted">${fmt(v)} (${pct}%)</span></div><div class="progress"><div style="width:${pct}%;background:${cat?.color||'#888'}"></div></div></div>`}).join('')||'<div class="text-center muted py-4">Tidak ada pengeluaran</div>'}</div>
+  `;
+}
+
+function renderCompare() {
+  const cm = monthISO();
+  const pm = new Date(); pm.setMonth(pm.getMonth()-1); const pmKey = monthISO(pm);
+  const cur = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.status==='done');
+  const prev = window.DB.transactions.filter(t=>t.transaction_date.startsWith(pmKey)&&t.status==='done');
+  const curExp = cur.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const prevExp = prev.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const diff = curExp - prevExp;
+  const pct = prevExp>0?((diff/prevExp)*100).toFixed(1):0;
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4"><h3 class="font-semibold text-lg">Perbandingan</h3><p class="text-sm muted">Bulan ini vs bulan lalu</p></div>
+    <div class="card rounded-xl p-4"><div class="grid grid-cols-2 gap-4 mb-4"><div class="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800"><div class="text-xs muted mb-1">Bulan Lalu</div><div class="text-2xl font-bold">${fmt(prevExp)}</div></div><div class="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800"><div class="text-xs muted mb-1">Bulan Ini</div><div class="text-2xl font-bold">${fmt(curExp)}</div></div></div><div class="text-center p-4 rounded-lg ${diff>0?'bg-red-50 dark:bg-red-900/20':'bg-emerald-50 dark:bg-emerald-900/20'}"><div class="text-lg font-bold ${diff>0?'text-red-600':'text-emerald-600'}">${diff>0?'Naik':'Turun'} ${fmt(Math.abs(diff))} (${pct}%)</div></div></div>
+  `;
+}
+
+function renderAnalysis() {
+  const cm = monthISO();
+  const txs = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.status==='done');
+  const byCat = {};
+  txs.filter(t=>t.type==='expense').forEach(t=>{byCat[t.category_id]=(byCat[t.category_id]||0)+Number(t.amount);});
+  const top = Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
+  const topCat = top?window.DB.categories.find(c=>c.id===top[0]):null;
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4"><h3 class="font-semibold text-lg">Analisis Pengeluaran</h3><p class="text-sm muted">${new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</p></div>
+    <div class="card rounded-xl p-4 mb-4"><h4 class="font-semibold mb-3">💡 Insight</h4>${topCat?`<div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"><b>Pengeluaran terbesar:</b> ${topCat.icon} ${esc(topCat.name)} sebesar <b>${fmt(top[1])}</b></div>`:''}</div>
+    <div class="card rounded-xl p-4"><h4 class="font-semibold mb-3">Pengeluaran per Kategori</h4>${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cid,v])=>{const cat=window.DB.categories.find(c=>c.id===cid);return `<div class="flex justify-between py-2 border-b last:border-0"><span>${cat?.icon||''} ${esc(cat?.name)}</span><span class="font-bold">${fmt(v)}</span></div>`}).join('')||'<div class="text-center muted py-4">Tidak ada data</div>'}</div>
+  `;
+}
+
+// ============ CATEGORIES ============
+function renderCategories() {
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4 flex justify-between items-center"><h3 class="font-semibold text-lg">Kategori</h3><button onclick="window.openCategoryForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Kategori Baru</button></div>
+    <div class="grid md:grid-cols-3 gap-4">${window.DB.categories.map(c=>`
+      <div class="card rounded-xl p-4 flex items-center gap-3"><div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style="background:${c.color}22">${c.icon||'📌'}</div><div class="flex-1"><div class="font-semibold">${esc(c.name)}</div><div class="text-xs muted capitalize">${c.type}</div></div><button onclick="window.deleteCategory('${c.id}')" class="p-1.5 rounded hover:bg-black/10">🗑️</button></div>
+    `).join('')}</div>
+  `;
+}
+
+window.openCategoryForm = function() {
+  window.openModal('<h3 class="text-lg font-bold mb-4">Kategori Baru</h3><form id="cForm" class="space-y-3"><div><label class="text-xs muted">Nama</label><input name="name" required class="w-full rounded px-3 py-2"/></div><div><label class="text-xs muted">Jenis</label><select name="type" class="w-full rounded px-3 py-2"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option><option value="saving">Tabungan</option></select></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs muted">Icon</label><input name="icon" class="w-full rounded px-3 py-2" placeholder="🏷️"/></div><div><label class="text-xs muted">Warna</label><input name="color" type="color" class="w-full rounded px-3 py-2 h-10" value="#3b82f6"/></div></div><div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white">Simpan</button></div></form>', {
+    onMount: root => {
+      root.querySelector('#cForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        window.DB.categories.push({ id: uid('c'), name: fd.get('name'), type: fd.get('type'), icon: fd.get('icon')||'', color: fd.get('color') });
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal(); window.toast('Kategori ditambahkan','success'); renderCategories();
+      });
+    }
+  });
+};
+
+window.deleteCategory = async function(id) {
+  if(window.DB.transactions.some(t=>t.category_id===id)) { window.toast('Masih dipakai transaksi','error'); return; }
+  if(!await window.confirmDialog('Hapus kategori?')) return;
+  window.DB.categories = window.DB.categories.filter(c=>c.id!==id);
+  await window.saveDB(window.currentUser.uid);
+  window.toast('Dihapus','success'); renderCategories();
+};
+
+// ============ SETTINGS ============
 function renderSettings() {
-  const user = window.currentUser;
-  const html = '<div class="mb-4"><h1 class="text-2xl font-bold">Pengaturan</h1><p class="muted text-sm">Profil & data</p></div><div class="card rounded-xl p-4 mb-3"><div class="flex items-center gap-3 mb-3"><div class="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center text-white font-bold text-lg">' + (user?.displayName||'U')[0].toUpperCase() + '</div><div><div class="font-bold">' + esc(user?.displayName||'User') + '</div><div class="text-xs muted">' + esc(user?.email||'') + '</div><div class="text-xs text-emerald-600 mt-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Tersinkron dengan cloud</div></div></div><button onclick="window.logout()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 py-2 rounded-lg font-semibold">🚪 Keluar</button></div><div class="card rounded-xl p-4 mb-3"><h3 class="font-semibold mb-3">📱 Install di HP</h3><div class="text-sm muted space-y-1"><div>📲 <b>Android:</b> Menu ⋮ → "Install app"</div><div>📲 <b>iPhone:</b> Share → "Add to Home Screen"</div></div></div><div class="card rounded-xl p-4 mb-3"><h3 class="font-semibold mb-3">️ Backup Lokal</h3><button onclick="window.exportJSON()" class="w-full bg-blue-600 text-white py-2 rounded-lg text-sm mb-2">Export JSON Backup</button><button onclick="window.exportCSV()" class="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm">Export CSV</button></div><div class="card rounded-xl p-4"><h3 class="font-semibold mb-3 text-red-600">⚠️ Reset Data</h3><button onclick="window.resetAll()" class="w-full bg-red-600 text-white py-2 rounded-lg text-sm">Reset Semua Data</button></div>';
-  document.getElementById('content').innerHTML = html;
+  document.getElementById('content').innerHTML = `
+    <div class="max-w-2xl"><h3 class="font-semibold text-lg mb-4">Pengaturan</h3>
+    <div class="card rounded-xl p-4 mb-4"><div class="flex items-center gap-3 mb-4"><div class="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center text-white font-bold text-lg">${(window.currentUser?.displayName||'U')[0]}</div><div><div class="font-bold">${esc(window.currentUser?.displayName||'User')}</div><div class="text-xs muted">${esc(window.currentUser?.email||'')}</div></div></div><button onclick="window.logout()" class="w-full bg-red-50 text-red-600 py-2 rounded-lg font-semibold">🚪 Keluar</button></div>
+    <div class="card rounded-xl p-4 mb-4"><h4 class="font-semibold mb-3">️ Backup Data</h4><div class="grid grid-cols-2 gap-2"><button onclick="window.exportJSON()" class="bg-blue-600 text-white py-2 rounded-lg text-sm">Export JSON</button><button onclick="window.exportCSV()" class="bg-emerald-600 text-white py-2 rounded-lg text-sm">Export CSV</button></div></div>
+    <div class="card rounded-xl p-4"><h4 class="font-semibold mb-3 text-red-600">⚠️ Zona Bahaya</h4><button onclick="window.resetAll()" class="w-full bg-red-600 text-white py-2 rounded-lg text-sm">Reset Semua Data</button></div></div>
+  `;
 }
 
 window.resetAll = async function() {
-  if(!await window.confirmDialog('Reset semua data?','Semua data akan dihapus dari cloud.')) return;
+  if(!await window.confirmDialog('Reset semua data?')) return;
   window.DB = defaultDB();
   window.DB.user.name = window.currentUser?.displayName || 'User';
   await window.saveDB(window.currentUser.uid);
-  window.toast('Data direset','success');
-  window.route();
-};
-
-window.exportCSV = function() {
-  const list = window.DB.transactions.slice().sort((a,b) => a.transaction_date.localeCompare(b.transaction_date));
-  const header = ['tanggal','jenis','kategori','nominal','deskripsi'];
-  const rows = list.map(t => { const cat = window.DB.categories.find(c => c.id === t.category_id); return [t.transaction_date, t.type, cat?.name||'', t.amount, (t.description||'').replace(/"/g,'""')].map(v => '"' + v + '"').join(','); });
-  downloadFile([header.join(','), ...rows].join('\n'), 'dompetku_' + todayISO() + '.csv', 'text/csv');
-  window.toast('CSV diekspor','success');
+  window.toast('Data direset','success'); window.route();
 };
 
 window.exportJSON = function() {
-  downloadFile(JSON.stringify(window.DB, null, 2), 'dompetku_backup_' + todayISO() + '.json', 'application/json');
-  window.toast('Backup diekspor','success');
+  const blob = new Blob([JSON.stringify(window.DB,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'dompetku_backup_'+todayISO()+'.json'; a.click();
+  URL.revokeObjectURL(url);
+  window.toast('Backup JSON diunduh','success');
 };
 
-function downloadFile(content, name, type) {
-  const blob = new Blob([content], { type });
+window.exportCSV = function() {
+  const rows = [['Tanggal','Jenis','Kategori','Nominal','Deskripsi']];
+  window.DB.transactions.forEach(t => {
+    const cat = window.DB.categories.find(c=>c.id===t.category_id);
+    rows.push([t.transaction_date, t.type, cat?.name||'', t.amount, t.description||'']);
+  });
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  const a = document.createElement('a'); a.href = url; a.download = 'dompetku_'+todayISO()+'.csv'; a.click();
   URL.revokeObjectURL(url);
-}
+  window.toast('CSV diunduh','success');
+};
 </script>
 </body>
 </html>
