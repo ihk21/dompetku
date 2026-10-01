@@ -257,6 +257,7 @@ function recomputeBalances(db) {
     if(t.type === 'income') acc.balance += Number(t.amount);
     else if(t.type === 'expense') acc.balance -= Number(t.amount);
   });
+  
 }
 function getTotalAllocated(db) { return db.savings_goals.reduce((s,g) => s + Number(g.current||0), 0); }
 function getAvailableBalance(db) { return Math.max(0, window.DB.accounts.reduce((s,a) => s + Number(a.balance||0), 0) - getTotalAllocated(window.DB)); }
