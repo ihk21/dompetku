@@ -109,6 +109,7 @@
         <a href="#/budget" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="budget">🎯 Budget</a>
         <a href="#/savings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="savings">🏦 Tabungan</a>
         <a href="#/accounts" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="accounts">💼 Rekening</a>
+        <a href="#/transfer" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="transfer">🔄 Transfer</a>
         <a href="#/recurring" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="recurring">🔁 Transaksi Berulang</a>
         
         <div class="nav-section">Laporan</div>
@@ -337,6 +338,7 @@ function defaultDB() {
     transactions: [],
     budgets: [],
     savings_goals: [],
+    transfers: [],
     recurring: [],
     settings: { theme: 'light' }
   };
@@ -401,6 +403,14 @@ function recomputeBalances(db) {
     if(t.type === 'income' || t.type === 'saving') acc.balance += Number(t.amount);
     else if(t.type === 'expense') acc.balance -= Number(t.amount);
   });
+  (db.transfers || []).forEach(tr => {
+    const fromAcc = db.accounts.find(a => a.id === tr.from_account_id);
+    const toAcc = db.accounts.find(a => a.id === tr.to_account_id);
+    const amount = Number(tr.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (fromAcc) fromAcc.balance -= amount;
+    if (toAcc) toAcc.balance += amount;
+  });
 }
 
 const routes = {
@@ -410,6 +420,7 @@ const routes = {
   'budget': { title:'Budget', render: renderBudget },
   'savings': { title:'Tabungan', render: renderSavings },
   'accounts': { title:'Rekening', render: renderAccounts },
+  'transfer': { title:'Transfer', render: renderTransfer },
   'recurring': { title:'Transaksi Berulang', render: renderRecurring },
   'report/daily': { title:'Laporan Harian', render: renderDailyReport },
   'report/monthly': { title:'Laporan Bulanan', render: renderMonthlyReport },
@@ -1069,6 +1080,121 @@ function renderAnalysis() {
     </div>
   `;
 }
+
+// ============ TRANSFERS ============
+function renderTransfer() {
+  const transfers = (window.DB.transfers || []).slice().sort((a,b) => b.date.localeCompare(a.date));
+  document.getElementById('content').innerHTML = `
+    <div class="mb-4 flex justify-between items-center">
+      <h3 class="font-semibold text-lg">Transfer Antar Rekening</h3>
+      <button onclick="window.openTransferForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Transfer Baru</button>
+    </div>
+    <div class="card rounded-xl overflow-hidden">
+      <div class="table-responsive">
+        <table class="w-full text-sm">
+          <thead class="table-header border-b">
+            <tr>
+              <th class="text-left py-2 px-3">Tanggal</th>
+              <th class="text-left py-2 px-3">Dari</th>
+              <th class="text-left py-2 px-3">Ke</th>
+              <th class="text-right py-2 px-3">Nominal</th>
+              <th class="text-left py-2 px-3">Catatan</th>
+              <th class="text-center py-2 px-3">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transfers.map(tr => {
+              const fromAcc = window.DB.accounts.find(a => a.id === tr.from_account_id);
+              const toAcc = window.DB.accounts.find(a => a.id === tr.to_account_id);
+              return `<tr class="border-b last:border-0">
+                <td class="py-2 px-3 text-xs">${fmtDate(tr.date)}</td>
+                <td class="py-2 px-3">${esc(fromAcc?.name || '?')}</td>
+                <td class="py-2 px-3">${esc(toAcc?.name || '?')}</td>
+                <td class="text-right py-2 px-3 font-bold text-indigo-600">${fmt(tr.amount)}</td>
+                <td class="py-2 px-3 text-xs">${esc(tr.note || '-')}</td>
+                <td class="text-center py-2 px-3">
+                  <button onclick="window.deleteTransfer('${tr.id}')" class="text-red-500 hover:underline text-xs">Hapus</button>
+                </td>
+              </tr>`;
+            }).join('') || '<tr><td colspan="6" class="text-center py-8 muted">Belum ada riwayat transfer</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+window.openTransferForm = function() {
+  if (window.DB.accounts.length < 2) {
+    window.toast('Tambahkan minimal dua rekening terlebih dahulu', 'warn');
+    return;
+  }
+
+  window.openModal(`<h3 class="text-lg font-bold mb-4">Transfer Antar Rekening</h3>
+    <div class="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-xs mb-3 text-indigo-700 dark:text-indigo-300">
+      💡 Transfer tidak dihitung sebagai pemasukan atau pengeluaran. Total saldo tetap sama.
+    </div>
+    <form id="trForm" class="space-y-3">
+      <div><label class="text-xs font-semibold">Dari Rekening</label>
+        <select name="from_account_id" class="w-full rounded px-3 py-2" required>${window.DB.accounts.map(a => '<option value="'+a.id+'">'+esc(a.name)+' ('+fmt(a.balance)+')</option>').join('')}</select>
+      </div>
+      <div><label class="text-xs font-semibold">Ke Rekening</label>
+        <select name="to_account_id" class="w-full rounded px-3 py-2" required>${window.DB.accounts.map(a => '<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')}</select>
+      </div>
+      <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" step="1" required class="w-full rounded px-3 py-2"/></div>
+      <div><label class="text-xs font-semibold">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="${todayISO()}"/></div>
+      <div><label class="text-xs font-semibold">Catatan (Opsional)</label><input name="note" class="w-full rounded px-3 py-2" placeholder="Contoh: Top up GoPay"/></div>
+      <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Transfer</button></div>
+    </form>`, {
+    onMount: root => {
+      root.querySelector('#trForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const fromId = fd.get('from_account_id');
+        const toId = fd.get('to_account_id');
+        const amount = Number(fd.get('amount'));
+        const fromAcc = window.DB.accounts.find(a => a.id === fromId);
+
+        if (fromId === toId) {
+          window.toast('Rekening asal dan tujuan tidak boleh sama', 'error');
+          return;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+          window.toast('Nominal harus lebih dari 0', 'error');
+          return;
+        }
+        if (!fromAcc || amount > Number(fromAcc.balance || 0)) {
+          window.toast('Saldo rekening asal tidak mencukupi', 'error');
+          return;
+        }
+
+        if (!window.DB.transfers) window.DB.transfers = [];
+        window.DB.transfers.push({
+          id: uid('tr'),
+          from_account_id: fromId,
+          to_account_id: toId,
+          amount,
+          date: fd.get('date'),
+          note: fd.get('note') || ''
+        });
+        recomputeBalances(window.DB);
+        await window.saveDB(window.currentUser.uid);
+        window.closeModal();
+        window.toast('Transfer berhasil', 'success');
+        renderTransfer();
+      });
+    }
+  });
+};
+
+window.deleteTransfer = async function(id) {
+  if (!await window.confirmDialog('Hapus riwayat transfer?', 'Saldo rekening akan dikembalikan seperti sebelum transfer.')) return;
+  window.DB.transfers = (window.DB.transfers || []).filter(tr => tr.id !== id);
+  recomputeBalances(window.DB);
+  await window.saveDB(window.currentUser.uid);
+  window.toast('Transfer dihapus', 'success');
+  renderTransfer();
+};
 
 // ============ CATEGORIES ============
 function renderCategories() {
