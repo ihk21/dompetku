@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="light">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
@@ -7,11 +7,19 @@
 <title>DompetKu — Cloud Sync</title>
 <link rel="manifest" href="./manifest.json"/>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode: 'class' };
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root { --bg:#f8fafc; --card:#ffffff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; }
   .dark { --bg:#0b1220; --card:#111a2e; --border:#1f2a44; --text:#e2e8f0; --muted:#94a3b8; }
-  body { background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; transition:background-color .2s ease,color .2s ease; }
+  .dark .bg-white { background-color:var(--card) !important; }
+  .dark .bg-gray-50 { background-color:#172033 !important; }
+  .dark .bg-red-50 { background-color:#3a1d29 !important; }
+  .dark .border-gray-200, .dark .border-gray-300 { border-color:var(--border) !important; }
+  .dark .text-gray-700, .dark .text-gray-800, .dark .text-gray-900 { color:var(--text) !important; }
   .card { background:var(--card); border:1px solid var(--border); }
   .muted { color:var(--muted); }
   .chip { display:inline-flex; align-items:center; gap:.25rem; padding:.125rem .5rem; border-radius:9999px; font-size:.7rem; font-weight:600 }
@@ -45,6 +53,10 @@
 </style>
 </head>
 <body>
+
+<button id="themeToggle" type="button" class="fixed top-4 right-4 z-50 w-10 h-10 rounded-full card shadow-md flex items-center justify-center hover:scale-105 transition-transform" title="Ganti tema" aria-label="Ganti tema">
+  <span id="themeIcon" aria-hidden="true">🌙</span>
+</button>
 
 <!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-600 to-indigo-700">
@@ -178,6 +190,26 @@ let unsubscribeUserData = null;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(err => console.error('Service worker registration failed:', err));
 }
+
+function applyTheme(theme) {
+  const isDark = theme === 'dark';
+  document.documentElement.classList.toggle('dark', isDark);
+  document.documentElement.classList.toggle('light', !isDark);
+  document.body.classList.toggle('dark', isDark);
+  document.body.classList.toggle('light', !isDark);
+  document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#0b1220' : '#3b82f6');
+}
+
+window.toggleTheme = function() {
+  const nextTheme = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+  localStorage.setItem('dompetku_theme', nextTheme);
+  applyTheme(nextTheme);
+  if (location.hash) window.route();
+};
+
+document.getElementById('themeToggle').addEventListener('click', window.toggleTheme);
+applyTheme(localStorage.getItem('dompetku_theme') || 'light');
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
