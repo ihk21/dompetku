@@ -30,7 +30,7 @@
       "name": "Tambah Transaksi",
       "short_name": "Transaksi",
       "description": "Catat transaksi baru",
-      "url": "/#/transactions",
+      "url": "./#/transactions",
       "icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%2310b981'/%3E%3Ctext x='96' y='140' font-size='160' text-anchor='middle' fill='white'%3E%2B%3C/text%3E%3C/svg%3E", "sizes": "192x192"}]
     }
   ]
