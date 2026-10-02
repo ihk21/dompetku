@@ -159,6 +159,9 @@
     <a href="#/transactions" class="bnav flex-1 flex flex-col items-center py-3 text-xs" data-route="transactions">
       <span class="text-xl mb-0.5"></span><span>Transaksi</span>
     </a>
+    <a href="#/budget" class="bnav flex-1 flex flex-col items-center py-3 text-xs" data-route="budget">
+      <span class="text-xl mb-0.5">🎯</span><span>Budget</span>
+    </a>
     <a href="#/savings" class="bnav flex-1 flex flex-col items-center py-3 text-xs" data-route="savings">
       <span class="text-xl mb-0.5">🏦</span><span>Tabungan</span>
     </a>
@@ -244,14 +247,14 @@ async function loadUserData(uid) {
   const userDoc = doc(db, 'users', uid);
   const snapshot = await getDoc(userDoc);
   if (snapshot.exists()) {
-    window.DB = snapshot.data().data;
+    window.DB = normalizeDB(snapshot.data().data);
   } else {
     window.DB = defaultDB();
     await saveUserData(uid);
   }
   unsubscribeUserData = onSnapshot(userDoc, (docSnap) => {
     if (docSnap.exists()) {
-      const newData = docSnap.data().data;
+      const newData = normalizeDB(docSnap.data().data);
       if (JSON.stringify(newData) !== JSON.stringify(window.DB)) {
         window.DB = newData;
         if (location.hash) window.route();
@@ -342,6 +345,17 @@ function defaultDB() {
     recurring: [],
     settings: { theme: 'light' }
   };
+}
+
+function normalizeDB(data) {
+  const defaults = defaultDB();
+  const normalized = { ...defaults, ...(data || {}) };
+  for (const key of ['accounts', 'categories', 'transactions', 'budgets', 'savings_goals', 'transfers', 'recurring']) {
+    if (!Array.isArray(normalized[key])) normalized[key] = defaults[key];
+  }
+  normalized.user = { ...defaults.user, ...(data?.user || {}) };
+  normalized.settings = { ...defaults.settings, ...(data?.settings || {}) };
+  return normalized;
 }
 
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-3); }
