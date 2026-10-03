@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#3b82f6"/>
 <title>DompetKu — Cloud Sync</title>
 <link rel="manifest" href="./manifest.json"/>
+<!-- Favicon -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%233b82f6'/%3E%3Ctext x='96' y='130' font-size='120' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3ED%3C/text%3E%3C/svg%3E"/>
+<link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { darkMode: 'class' };
@@ -159,9 +162,6 @@
     <a href="#/transactions" class="bnav flex-1 flex flex-col items-center py-3 text-xs" data-route="transactions">
       <span class="text-xl mb-0.5"></span><span>Transaksi</span>
     </a>
-    <a href="#/budget" class="bnav flex-1 flex flex-col items-center py-3 text-xs" data-route="budget">
-      <span class="text-xl mb-0.5">🎯</span><span>Budget</span>
-    </a>
     <a href="#/savings" class="bnav flex-1 flex flex-col items-center py-3 text-xs" data-route="savings">
       <span class="text-xl mb-0.5">🏦</span><span>Tabungan</span>
     </a>
@@ -196,7 +196,11 @@ const db = getFirestore(app);
 let unsubscribeUserData = null;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(err => console.error('Service worker registration failed:', err));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(registration => console.log('Service worker registered:', registration.scope))
+      .catch(error => console.error('Service worker registration failed:', error));
+  });
 }
 
 function applyTheme(theme) {
@@ -247,14 +251,14 @@ async function loadUserData(uid) {
   const userDoc = doc(db, 'users', uid);
   const snapshot = await getDoc(userDoc);
   if (snapshot.exists()) {
-    window.DB = normalizeDB(snapshot.data().data);
+    window.DB = snapshot.data().data;
   } else {
     window.DB = defaultDB();
     await saveUserData(uid);
   }
   unsubscribeUserData = onSnapshot(userDoc, (docSnap) => {
     if (docSnap.exists()) {
-      const newData = normalizeDB(docSnap.data().data);
+      const newData = docSnap.data().data;
       if (JSON.stringify(newData) !== JSON.stringify(window.DB)) {
         window.DB = newData;
         if (location.hash) window.route();
@@ -345,17 +349,6 @@ function defaultDB() {
     recurring: [],
     settings: { theme: 'light' }
   };
-}
-
-function normalizeDB(data) {
-  const defaults = defaultDB();
-  const normalized = { ...defaults, ...(data || {}) };
-  for (const key of ['accounts', 'categories', 'transactions', 'budgets', 'savings_goals', 'transfers', 'recurring']) {
-    if (!Array.isArray(normalized[key])) normalized[key] = defaults[key];
-  }
-  normalized.user = { ...defaults.user, ...(data?.user || {}) };
-  normalized.settings = { ...defaults.settings, ...(data?.settings || {}) };
-  return normalized;
 }
 
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-3); }
@@ -655,16 +648,6 @@ function renderCalendar() {
 // ============ BUDGET ============
 function renderBudget() {
   const cm = monthISO();
-  const budgets = window.DB.budgets.filter(b=>b.month===cm);
-  const spentByCategory = new Map();
-  window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&t.status==='done').forEach(t=>{
-    spentByCategory.set(t.category_id, (spentByCategory.get(t.category_id)||0)+Number(t.amount));
-  });
-  const totalAllocated = budgets.reduce((sum,b)=>sum+Number(b.amount),0);
-  const budgetedCategories = new Set(budgets.map(b=>b.category_id));
-  const totalSpent = [...budgetedCategories].reduce((sum,id)=>sum+(spentByCategory.get(id)||0),0);
-  const remaining = totalAllocated-totalSpent;
-  const totalUsage = totalAllocated>0?totalSpent/totalAllocated*100:0;
   document.getElementById('content').innerHTML = `
     <div class="card rounded-xl p-4 mb-4">
       <div class="flex justify-between items-center mb-4">
@@ -672,63 +655,42 @@ function renderBudget() {
         <button onclick="window.openBudgetForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
       </div>
       <div class="space-y-3">
-        ${budgets.map(b=>{
+        ${window.DB.budgets.filter(b=>b.month===cm).map(b=>{
           const cat = window.DB.categories.find(c=>c.id===b.category_id);
-          const spent = spentByCategory.get(b.category_id)||0;
-          const pct = Number(b.amount)>0?spent/Number(b.amount)*100:0;
+          const spent = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&t.category_id===b.category_id&&t.status==='done').reduce((s,t)=>s+Number(t.amount),0);
+          const pct = Math.min(100, (spent/b.amount)*100);
           const color = pct>=100?'bg-red-500':pct>=80?'bg-amber-500':'bg-emerald-500';
           return `<div class="border rounded-lg p-3">
-            <div class="flex justify-between items-start gap-3 mb-2">
-              <span class="font-semibold">${cat?.icon||''} ${esc(cat?.name||'Kategori dihapus')}</span>
-              <div class="flex items-center gap-1 shrink-0">
-                <button type="button" onclick="window.openBudgetForm('${b.id}')" class="p-1.5 rounded hover:bg-black/5" title="Edit budget" aria-label="Edit budget">✏️</button>
-                <button type="button" onclick="window.deleteBudget('${b.id}')" class="p-1.5 rounded hover:bg-red-50 text-red-600" title="Hapus budget" aria-label="Hapus budget">🗑️</button>
-              </div>
+            <div class="flex justify-between mb-2">
+              <span class="font-semibold">${cat?.icon||''} ${esc(cat?.name)}</span>
+              <span class="text-sm muted">${fmt(spent)}/${fmt(b.amount)}</span>
             </div>
-            <div class="flex justify-between text-sm muted mb-2"><span>${fmt(spent)} terpakai</span><span>${fmt(b.amount)}</span></div>
             <div class="progress mb-2"><div class="${color}" style="width:${pct}%"></div></div>
             <div class="text-xs ${pct>=100?'text-red-600':pct>=80?'text-amber-600':'text-emerald-600'} font-semibold">${pct.toFixed(0)}% terpakai</div>
           </div>`;
         }).join('')||'<div class="text-center muted py-8">Belum ada budget</div>'}
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t mt-4 pt-4">
-        <div><div class="text-xs muted mb-1">Total alokasi</div><div class="font-semibold">${fmt(totalAllocated)}</div></div>
-        <div><div class="text-xs muted mb-1">Total terpakai</div><div class="font-semibold">${fmt(totalSpent)} <span class="text-xs muted">(${totalUsage.toFixed(0)}%)</span></div></div>
-        <div><div class="text-xs muted mb-1">${remaining<0?'Melebihi alokasi':'Sisa alokasi'}</div><div class="font-semibold ${remaining<0?'text-red-600':'text-emerald-600'}">${fmt(Math.abs(remaining))}</div></div>
-      </div>
     </div>
   `;
 }
 
-window.openBudgetForm = function(id = null) {
-  const budget = id ? window.DB.budgets.find(b=>b.id===id) : null;
-  if(id && !budget) { window.toast('Budget tidak ditemukan','error'); return; }
-  window.openModal(`<h3 class="text-lg font-bold mb-4">${budget?'Edit':'Tambah'} Budget</h3><form id="bForm" class="space-y-3">
-    <div><label class="text-xs font-semibold">Kategori</label><select name="category_id" required class="w-full rounded px-3 py-2">${window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'" '+(budget?.category_id===c.id?'selected':'')+'>'+c.icon+' '+esc(c.name)+'</option>').join('')}</select></div>
-    <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${budget?.month||monthISO()}"/></div>
-    <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="${budget?.amount??''}"/></div>
+window.openBudgetForm = function() {
+  window.openModal(`<h3 class="text-lg font-bold mb-4">Tambah Budget</h3><form id="bForm" class="space-y-3">
+    <div><label class="text-xs font-semibold">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">${window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'">'+c.icon+' '+esc(c.name)+'</option>').join('')}</select></div>
+    <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${monthISO()}"/></div>
+    <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
       root.querySelector('#bForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const data = { category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) };
-        if(budget) Object.assign(budget, data);
-        else window.DB.budgets.push({ id: uid('b'), ...data });
+        window.DB.budgets.push({ id: uid('b'), category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) });
         await window.saveDB(window.currentUser.uid);
-        window.closeModal(); window.toast(budget?'Budget diperbarui':'Budget ditambahkan','success'); renderBudget();
+        window.closeModal(); window.toast('Budget ditambahkan','success'); renderBudget();
       });
     }
   });
-};
-
-window.deleteBudget = async function(id) {
-  if(!await window.confirmDialog('Hapus budget?','Budget ini akan dihapus permanen.')) return;
-  window.DB.budgets = window.DB.budgets.filter(b=>b.id!==id);
-  await window.saveDB(window.currentUser.uid);
-  window.toast('Budget dihapus','success');
-  renderBudget();
 };
 
 // ============ SAVINGS ============
