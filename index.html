@@ -113,6 +113,7 @@
         <a href="#/savings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="savings">🏦 Tabungan</a>
         <a href="#/accounts" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="accounts">💼 Rekening</a>
         <a href="#/transfer" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="transfer">🔄 Transfer</a>
+        <a href="#/pindah-buku" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="pindah-buku">📦 Pindah Buku</a>
         <a href="#/recurring" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="recurring">🔁 Transaksi Berulang</a>
         
         <div class="nav-section">Laporan</div>
@@ -414,8 +415,9 @@ function recomputeBalances(db) {
     const fromAcc = db.accounts.find(a => a.id === tr.from_account_id);
     const toAcc = db.accounts.find(a => a.id === tr.to_account_id);
     const amount = Number(tr.amount);
+    const adminFee = Number(tr.admin_fee || 0);
     if (!Number.isFinite(amount) || amount <= 0) return;
-    if (fromAcc) fromAcc.balance -= amount;
+    if (fromAcc) fromAcc.balance -= (amount + adminFee);
     if (toAcc) toAcc.balance += amount;
   });
 }
@@ -427,7 +429,8 @@ const routes = {
   'budget': { title:'Budget', render: renderBudget },
   'savings': { title:'Tabungan', render: renderSavings },
   'accounts': { title:'Rekening', render: renderAccounts },
-  'transfer': { title:'Transfer', render: renderTransfer },
+  'transfer': { title:'Transfer Antar Rekening', render: renderTransfer },
+  'pindah-buku': { title:'Pindah Buku', render: renderTransfer },
   'recurring': { title:'Transaksi Berulang', render: renderRecurring },
   'report/daily': { title:'Laporan Harian', render: renderDailyReport },
   'report/monthly': { title:'Laporan Bulanan', render: renderMonthlyReport },
@@ -1090,11 +1093,15 @@ function renderAnalysis() {
 
 // ============ TRANSFERS ============
 function renderTransfer() {
+  const isPindahBuku = (location.hash || '#/').slice(2) === 'pindah-buku';
   const transfers = (window.DB.transfers || []).slice().sort((a,b) => b.date.localeCompare(a.date));
+  const title = isPindahBuku ? 'Pindah Buku' : 'Transfer Antar Rekening';
+  const btnText = isPindahBuku ? '＋ Pindah Buku Baru' : '＋ Transfer Baru';
+
   document.getElementById('content').innerHTML = `
     <div class="mb-4 flex justify-between items-center">
-      <h3 class="font-semibold text-lg">Transfer Antar Rekening</h3>
-      <button onclick="window.openTransferForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Transfer Baru</button>
+      <h3 class="font-semibold text-lg">${title}</h3>
+      <button onclick="window.openTransferForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">${btnText}</button>
     </div>
     <div class="card rounded-xl overflow-hidden">
       <div class="table-responsive">
@@ -1113,12 +1120,13 @@ function renderTransfer() {
             ${transfers.map(tr => {
               const fromAcc = window.DB.accounts.find(a => a.id === tr.from_account_id);
               const toAcc = window.DB.accounts.find(a => a.id === tr.to_account_id);
+              const adminText = Number(tr.admin_fee || 0) > 0 ? ` • Admin ${fmt(tr.admin_fee)}` : '';
               return `<tr class="border-b last:border-0">
                 <td class="py-2 px-3 text-xs">${fmtDate(tr.date)}</td>
                 <td class="py-2 px-3">${esc(fromAcc?.name || '?')}</td>
                 <td class="py-2 px-3">${esc(toAcc?.name || '?')}</td>
                 <td class="text-right py-2 px-3 font-bold text-indigo-600">${fmt(tr.amount)}</td>
-                <td class="py-2 px-3 text-xs">${esc(tr.note || '-')}</td>
+                <td class="py-2 px-3 text-xs">${esc((tr.note || '-') + adminText)}</td>
                 <td class="text-center py-2 px-3">
                   <button onclick="window.deleteTransfer('${tr.id}')" class="text-red-500 hover:underline text-xs">Hapus</button>
                 </td>
@@ -1137,9 +1145,14 @@ window.openTransferForm = function() {
     return;
   }
 
-  window.openModal(`<h3 class="text-lg font-bold mb-4">Transfer Antar Rekening</h3>
+  const isPindahBuku = (location.hash || '#/').slice(2) === 'pindah-buku';
+  const modalTitle = isPindahBuku ? 'Pindah Buku' : 'Transfer Antar Rekening';
+  const helperText = isPindahBuku ? '💡 Pindah buku memindahkan dana antar rekening tanpa mengubah total saldo.' : '💡 Transfer tidak dihitung sebagai pemasukan atau pengeluaran. Total saldo tetap sama.';
+  const adminLabel = isPindahBuku ? 'Biaya Admin / Fee' : 'Biaya Admin (opsional)';
+
+  window.openModal(`<h3 class="text-lg font-bold mb-4">${modalTitle}</h3>
     <div class="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-xs mb-3 text-indigo-700 dark:text-indigo-300">
-      💡 Transfer tidak dihitung sebagai pemasukan atau pengeluaran. Total saldo tetap sama.
+      ${helperText}
     </div>
     <form id="trForm" class="space-y-3">
       <div><label class="text-xs font-semibold">Dari Rekening</label>
@@ -1149,9 +1162,10 @@ window.openTransferForm = function() {
         <select name="to_account_id" class="w-full rounded px-3 py-2" required>${window.DB.accounts.map(a => '<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')}</select>
       </div>
       <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" step="1" required class="w-full rounded px-3 py-2"/></div>
+      <div><label class="text-xs font-semibold">${adminLabel}</label><input name="admin_fee" type="number" min="0" step="1" value="0" class="w-full rounded px-3 py-2"/></div>
       <div><label class="text-xs font-semibold">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="${todayISO()}"/></div>
       <div><label class="text-xs font-semibold">Catatan (Opsional)</label><input name="note" class="w-full rounded px-3 py-2" placeholder="Contoh: Top up GoPay"/></div>
-      <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Transfer</button></div>
+      <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">${isPindahBuku ? 'Pindah Buku' : 'Transfer'}</button></div>
     </form>`, {
     onMount: root => {
       root.querySelector('#trForm').addEventListener('submit', async e => {
@@ -1160,6 +1174,7 @@ window.openTransferForm = function() {
         const fromId = fd.get('from_account_id');
         const toId = fd.get('to_account_id');
         const amount = Number(fd.get('amount'));
+        const adminFee = Number(fd.get('admin_fee') || 0);
         const fromAcc = window.DB.accounts.find(a => a.id === fromId);
 
         if (fromId === toId) {
@@ -1170,8 +1185,13 @@ window.openTransferForm = function() {
           window.toast('Nominal harus lebih dari 0', 'error');
           return;
         }
-        if (!fromAcc || amount > Number(fromAcc.balance || 0)) {
-          window.toast('Saldo rekening asal tidak mencukupi', 'error');
+        if (!Number.isFinite(adminFee) || adminFee < 0) {
+          window.toast('Biaya admin tidak valid', 'error');
+          return;
+        }
+        const totalNeeded = amount + adminFee;
+        if (!fromAcc || totalNeeded > Number(fromAcc.balance || 0)) {
+          window.toast('Saldo rekening asal tidak mencukupi untuk nominal dan biaya admin', 'error');
           return;
         }
 
@@ -1181,13 +1201,14 @@ window.openTransferForm = function() {
           from_account_id: fromId,
           to_account_id: toId,
           amount,
+          admin_fee: adminFee,
           date: fd.get('date'),
           note: fd.get('note') || ''
         });
         recomputeBalances(window.DB);
         await window.saveDB(window.currentUser.uid);
         window.closeModal();
-        window.toast('Transfer berhasil', 'success');
+        window.toast(isPindahBuku ? 'Pindah buku berhasil' : 'Transfer berhasil', 'success');
         renderTransfer();
       });
     }
