@@ -453,6 +453,10 @@ window.route = function() {
   const hash = (location.hash || '#/').slice(2);
   const r = routes[hash] || routes[''];
   const activeRoute = hash === 'pindah-buku' ? 'transfer' : hash;
+  if (hash !== 'report/compare' && window.compareChart) {
+    window.compareChart.destroy();
+    window.compareChart = null;
+  }
   document.getElementById('pageTitle').textContent = r.title;
   document.querySelectorAll('.nav-item, .bnav').forEach(el => {
     el.classList.toggle('active', el.dataset.route === activeRoute);
@@ -662,14 +666,26 @@ function renderCalendar() {
 // ============ BUDGET ============
 function renderBudget() {
   const cm = monthISO();
+  const budgets = window.DB.budgets.filter(b=>b.month===cm);
+  const totalBudget = budgets.reduce((sum,b)=>sum+Number(b.amount||0),0);
+  const budgetedCategories = new Set(budgets.map(b=>b.category_id));
+  const totalSpent = window.DB.transactions
+    .filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&budgetedCategories.has(t.category_id)&&t.status==='done')
+    .reduce((sum,t)=>sum+Number(t.amount||0),0);
+  const remaining = totalBudget-totalSpent;
   document.getElementById('content').innerHTML = `
     <div class="card rounded-xl p-4 mb-4">
       <div class="flex justify-between items-center mb-4">
         <h3 class="font-semibold text-lg">Budget Bulan Ini</h3>
         <button onclick="window.openBudgetForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
       </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div class="card rounded-lg p-3"><div class="text-xs muted">Total Budget</div><div class="text-xl font-bold">${fmt(totalBudget)}</div></div>
+        <div class="card rounded-lg p-3"><div class="text-xs muted">Total Terpakai</div><div class="text-xl font-bold text-amber-600">${fmt(totalSpent)}</div></div>
+        <div class="card rounded-lg p-3"><div class="text-xs muted">Sisa Budget</div><div class="text-xl font-bold ${remaining<0?'text-red-600':'text-emerald-600'}">${fmt(remaining)}</div></div>
+      </div>
       <div class="space-y-3">
-        ${window.DB.budgets.filter(b=>b.month===cm).map(b=>{
+        ${budgets.map(b=>{
           const cat = window.DB.categories.find(c=>c.id===b.category_id);
           const spent = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&t.category_id===b.category_id&&t.status==='done').reduce((s,t)=>s+Number(t.amount),0);
           const pct = Math.min(100, (spent/b.amount)*100);
@@ -709,13 +725,22 @@ window.openBudgetForm = function() {
 
 // ============ SAVINGS ============
 function renderSavings() {
+  const goals = window.DB.savings_goals || [];
+  const totalSaved = goals.reduce((sum,g)=>sum+Number(g.current||0),0);
+  const totalTarget = goals.reduce((sum,g)=>sum+Number(g.target||0),0);
+  const remaining = totalTarget-totalSaved;
   document.getElementById('content').innerHTML = `
     <div class="mb-4 flex justify-between items-center">
       <h3 class="font-semibold text-lg">Target Tabungan</h3>
       <button onclick="window.openGoalForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Target Baru</button>
     </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Total Terkumpul</div><div class="text-xl font-bold text-indigo-600">${fmt(totalSaved)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Total Target</div><div class="text-xl font-bold">${fmt(totalTarget)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Sisa Menuju Target</div><div class="text-xl font-bold ${remaining<0?'text-emerald-600':'text-amber-600'}">${fmt(Math.max(0,remaining))}</div></div>
+    </div>
     <div class="grid md:grid-cols-2 gap-4">
-      ${window.DB.savings_goals.map(g=>{
+      ${goals.map(g=>{
         const pct = g.target>0?(g.current/g.target*100):0;
         return `<div class="card rounded-xl p-4">
           <div class="flex justify-between mb-2">
@@ -785,10 +810,15 @@ window.deleteGoal = async function(id) {
 
 // ============ ACCOUNTS ============
 function renderAccounts() {
+  const totalBalance = window.DB.accounts.reduce((sum,a)=>sum+Number(a.balance||0),0);
   document.getElementById('content').innerHTML = `
     <div class="mb-4 flex justify-between items-center">
       <h3 class="font-semibold text-lg">Rekening</h3>
       <button onclick="window.openAccountForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Rekening Baru</button>
+    </div>
+    <div class="card rounded-xl p-4 mb-4">
+      <div class="text-xs muted">Total Saldo Semua Rekening</div>
+      <div class="text-2xl font-bold text-emerald-600">${fmt(totalBalance)}</div>
     </div>
     <div class="grid md:grid-cols-3 gap-4">
       ${window.DB.accounts.map(a=>`
@@ -860,10 +890,20 @@ window.deleteAccount = async function(id) {
 
 // ============ RECURRING TRANSACTIONS (FIXED!) ============
 function renderRecurring() {
+  const recurring = window.DB.recurring || [];
+  const monthlyTotal = recurring.reduce((sum,r)=>{
+    const amount = Number(r.amount||0);
+    const monthlyAmount = {daily:amount*30,weekly:amount*52/12,monthly:amount,yearly:amount/12}[r.frequency] || 0;
+    return sum + monthlyAmount;
+  },0);
   document.getElementById('content').innerHTML = `
     <div class="mb-4 flex justify-between items-center">
       <h3 class="font-semibold text-lg">Transaksi Berulang</h3>
       <button onclick="window.openRecurringForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Jumlah Jadwal Aktif</div><div class="text-2xl font-bold">${recurring.length}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Total Nominal per Bulan (Estimasi)</div><div class="text-2xl font-bold text-blue-600">${fmt(monthlyTotal)}</div></div>
     </div>
     <div class="card rounded-xl overflow-hidden">
       <table class="w-full text-sm">
@@ -877,7 +917,7 @@ function renderRecurring() {
           </tr>
         </thead>
         <tbody>
-          ${window.DB.recurring.map(r=>{
+          ${recurring.map(r=>{
             const freqLabel = {daily:'Harian',weekly:'Mingguan',monthly:'Bulanan',yearly:'Tahunan'}[r.frequency]||r.frequency;
             return `<tr class="border-b last:border-0">
               <td class="py-2 px-3 font-semibold">${esc(r.name)}</td>
@@ -1037,37 +1077,106 @@ function renderMonthlyReport() {
 
 function renderCompare() {
   const cm = monthISO();
-  const pm = new Date(); pm.setMonth(pm.getMonth()-1); const pmKey = monthISO(pm);
-  const cur = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.status==='done');
-  const prev = window.DB.transactions.filter(t=>t.transaction_date.startsWith(pmKey)&&t.status==='done');
-  const curExp = cur.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
-  const prevExp = prev.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentDay = now.getDate();
+  const previousMonthDate = new Date(currentYear, currentMonth-1, 1);
+  const pmKey = monthISO(previousMonthDate);
+  const previousDays = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth()+1, 0).getDate();
+  const comparableDays = Math.min(currentDay, previousDays);
+  const transactions = window.DB.transactions.filter(t=>t.status==='done'&&t.type==='expense');
+  const curDaily = Array(currentDay).fill(0);
+  const prevDaily = Array(currentDay).fill(null);
+  transactions.forEach(t=>{
+    const day = Number(t.transaction_date.slice(8,10));
+    if(t.transaction_date.startsWith(cm)&&day<=currentDay) curDaily[day-1]+=Number(t.amount||0);
+    if(t.transaction_date.startsWith(pmKey)&&day<=comparableDays) prevDaily[day-1]=Number(prevDaily[day-1]||0)+Number(t.amount||0);
+  });
+  for(let day=1;day<=comparableDays;day++) {
+    if(prevDaily[day-1]===null) prevDaily[day-1]=0;
+  }
+  const curExp = curDaily.reduce((sum,amount)=>sum+amount,0);
+  const prevExp = prevDaily.reduce((sum,amount)=>sum+(amount||0),0);
   const diff = curExp - prevExp;
-  const pct = prevExp>0?((diff/prevExp)*100).toFixed(1):0;
+  const pct = prevExp>0?` (${((diff/prevExp)*100).toFixed(1)}%)`:'';
+  const direction = diff>0?'⬆️ Naik':diff<0?'⬇️ Turun':'➖ Tetap';
+  const changeColor = diff>0?'text-red-600':diff<0?'text-emerald-600':'muted';
+  const labels = Array.from({length:currentDay},(_,index)=>String(index+1));
+  const dailyRows = labels.map((day,index)=>{
+    const previousAmount = prevDaily[index];
+    const currentAmount = curDaily[index];
+    const dailyDiff = previousAmount===null?null:currentAmount-previousAmount;
+    const dailyColor = dailyDiff===null?'muted':dailyDiff>0?'text-red-600':dailyDiff<0?'text-emerald-600':'muted';
+    const dailyLabel = dailyDiff===null?'—':`${dailyDiff>0?'⬆️':dailyDiff<0?'⬇️':'➖'} ${fmt(Math.abs(dailyDiff))}`;
+    return `<tr class="border-b last:border-0">
+      <td class="py-2 px-3">${String(day).padStart(2,'0')} ${esc(new Date(currentYear,currentMonth,Number(day)).toLocaleDateString('id-ID',{month:'short'}))}</td>
+      <td class="py-2 px-3 text-right">${previousAmount===null?'—':fmt(previousAmount)}</td>
+      <td class="py-2 px-3 text-right">${fmt(currentAmount)}</td>
+      <td class="py-2 px-3 text-right font-semibold ${dailyColor}">${dailyLabel}</td>
+    </tr>`;
+  }).join('');
   
   document.getElementById('content').innerHTML = `
     <div class="mb-4">
       <h3 class="font-semibold text-lg">Perbandingan</h3>
-      <p class="text-sm muted">Bulan ini vs bulan lalu</p>
+      <p class="text-sm muted">Pengeluaran bulan ini dibanding periode tanggal yang sama bulan lalu</p>
     </div>
-    <div class="card rounded-xl p-4">
+    <div class="card rounded-xl p-4 mb-4">
       <div class="grid grid-cols-2 gap-4 mb-4">
         <div class="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-          <div class="text-xs muted mb-1">Bulan Lalu</div>
+          <div class="text-xs muted mb-1">Bulan Lalu (s.d. tanggal ${comparableDays})</div>
           <div class="text-2xl font-bold">${fmt(prevExp)}</div>
         </div>
         <div class="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-          <div class="text-xs muted mb-1">Bulan Ini</div>
+          <div class="text-xs muted mb-1">Bulan Ini (s.d. tanggal ${currentDay})</div>
           <div class="text-2xl font-bold">${fmt(curExp)}</div>
         </div>
       </div>
-      <div class="text-center p-4 rounded-lg ${diff>0?'bg-red-50 dark:bg-red-900/20':'bg-emerald-50 dark:bg-emerald-900/20'}">
-        <div class="text-lg font-bold ${diff>0?'text-red-600':'text-emerald-600'}">
-          ${diff>0?'⬆️ Naik':'⬇️ Turun'} ${fmt(Math.abs(diff))} (${pct}%)
+      <div class="text-center p-4 rounded-lg ${diff>0?'bg-red-50 dark:bg-red-900/20':diff<0?'bg-emerald-50 dark:bg-emerald-900/20':'bg-gray-50 dark:bg-gray-800'}">
+        <div class="text-lg font-bold ${changeColor}">
+          ${direction} ${fmt(Math.abs(diff))}${pct}
         </div>
       </div>
     </div>
+    <div class="card rounded-xl p-4 mb-4">
+      <h4 class="font-semibold mb-3">Tren Pengeluaran Harian</h4>
+      <div class="relative h-72"><canvas id="compareDailyChart" aria-label="Grafik perbandingan pengeluaran harian bulan ini dan bulan lalu"></canvas></div>
+      <div id="compareChartFallback" class="hidden text-sm text-amber-600 mt-2">Grafik tidak dapat dimuat. Rincian perbandingan harian tetap tersedia di bawah.</div>
+    </div>
+    <div class="card rounded-xl overflow-hidden">
+      <div class="p-4"><h4 class="font-semibold">Perbandingan per Hari</h4><p class="text-xs muted">Pengeluaran dibandingkan berdasarkan tanggal yang sama.</p></div>
+      <div class="table-responsive">
+        <table class="w-full text-sm">
+          <thead class="table-header border-y">
+            <tr><th class="text-left py-2 px-3">Tanggal</th><th class="text-right py-2 px-3">Bulan Lalu</th><th class="text-right py-2 px-3">Bulan Ini</th><th class="text-right py-2 px-3">Perubahan</th></tr>
+          </thead>
+          <tbody>${dailyRows||'<tr><td colspan="4" class="text-center py-6 muted">Belum ada data harian</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
   `;
+  if(window.Chart) {
+    window.compareChart = new window.Chart(document.getElementById('compareDailyChart'),{
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {label:'Bulan Lalu',data:prevDaily,borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,.12)',tension:.3,spanGaps:false},
+          {label:'Bulan Ini',data:curDaily,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.12)',tension:.3,fill:true}
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        scales:{y:{beginAtZero:true,ticks:{callback:value=>fmt(value)}}},
+        plugins:{tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${fmt(context.parsed.y)}`}}}
+      }
+    });
+  } else {
+    document.getElementById('compareChartFallback').classList.remove('hidden');
+  }
 }
 
 function renderAnalysis() {
@@ -1105,11 +1214,36 @@ function renderAnalysis() {
 // ============ TRANSFERS ============
 function renderTransfer() {
   const transfers = (window.DB.transfers || []).slice().sort((a,b) => b.date.localeCompare(a.date));
+  const totalTransferred = transfers.reduce((sum,tr)=>sum+Number(tr.amount||0),0);
+  const totalAdminFees = transfers.reduce((sum,tr)=>sum+Number(tr.admin_fee||0),0);
 
   document.getElementById('content').innerHTML = `
     <div class="mb-4 flex justify-between items-center">
       <h3 class="font-semibold text-lg">Transfer Antar Rekening</h3>
       <button onclick="window.openTransferForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Transfer Baru</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Total Dana Ditransfer</div><div class="text-xl font-bold text-indigo-600">${fmt(totalTransferred)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Total Biaya Admin</div><div class="text-xl font-bold">${fmt(totalAdminFees)}</div></div>
+      <div class="card rounded-xl p-4"><div class="text-xs muted">Jumlah Transfer</div><div class="text-xl font-bold">${transfers.length}</div></div>
+    </div>
+    <div class="card rounded-xl p-4 mb-4">
+      <h4 class="font-semibold mb-3">Total Transfer per Rekening</h4>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        ${window.DB.accounts.map(account=>{
+          const sent = transfers.filter(tr=>tr.from_account_id===account.id).reduce((sum,tr)=>sum+Number(tr.amount||0),0);
+          const received = transfers.filter(tr=>tr.to_account_id===account.id).reduce((sum,tr)=>sum+Number(tr.amount||0),0);
+          const adminFees = transfers.filter(tr=>tr.from_account_id===account.id).reduce((sum,tr)=>sum+Number(tr.admin_fee||0),0);
+          const net = received-sent-adminFees;
+          return `<div class="border rounded-lg p-3">
+            <div class="font-semibold mb-2">${esc(account.name)}</div>
+            <div class="flex justify-between text-xs mb-1"><span class="muted">Dikirim</span><span class="font-semibold">${fmt(sent)}</span></div>
+            <div class="flex justify-between text-xs mb-1"><span class="muted">Diterima</span><span class="font-semibold">${fmt(received)}</span></div>
+            <div class="flex justify-between text-xs mb-1"><span class="muted">Biaya admin</span><span class="font-semibold">${fmt(adminFees)}</span></div>
+            <div class="flex justify-between text-xs border-t pt-2 mt-2"><span class="muted">Selisih masuk/keluar</span><span class="font-bold ${net>=0?'text-emerald-600':'text-red-600'}">${fmt(net)}</span></div>
+          </div>`;
+        }).join('')||'<div class="text-center muted py-4">Belum ada rekening</div>'}
+      </div>
     </div>
     <div class="card rounded-xl overflow-hidden">
       <div class="table-responsive">
