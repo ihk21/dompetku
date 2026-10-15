@@ -113,7 +113,6 @@
         <a href="#/savings" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="savings">🏦 Tabungan</a>
         <a href="#/accounts" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="accounts">💼 Rekening</a>
         <a href="#/transfer" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="transfer">🔄 Transfer</a>
-        <a href="#/pindah-buku" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="pindah-buku">📦 Pindah Buku</a>
         <a href="#/recurring" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5" data-route="recurring">🔁 Transaksi Berulang</a>
         
         <div class="nav-section">Laporan</div>
@@ -415,7 +414,7 @@ window.closeModal = function() { document.getElementById('modalRoot').innerHTML 
 
 function recomputeBalances(db) {
   db.accounts.forEach(a => a.balance = Number(a.opening_balance||0));
-  db.transactions.filter(t => t.status === 'done').forEach(t => {
+  (db.transactions || []).filter(t => t.status === 'done').forEach(t => {
     const acc = db.accounts.find(a => a.id === t.account_id);
     if(!acc) return;
     if(t.type === 'income' || t.type === 'saving') acc.balance += Number(t.amount);
@@ -440,7 +439,7 @@ const routes = {
   'savings': { title:'Tabungan', render: renderSavings },
   'accounts': { title:'Rekening', render: renderAccounts },
   'transfer': { title:'Transfer Antar Rekening', render: renderTransfer },
-  'pindah-buku': { title:'Pindah Buku', render: renderTransfer },
+  'pindah-buku': { title:'Transfer Antar Rekening', render: renderTransfer },
   'recurring': { title:'Transaksi Berulang', render: renderRecurring },
   'report/daily': { title:'Laporan Harian', render: renderDailyReport },
   'report/monthly': { title:'Laporan Bulanan', render: renderMonthlyReport },
@@ -453,12 +452,14 @@ const routes = {
 window.route = function() {
   const hash = (location.hash || '#/').slice(2);
   const r = routes[hash] || routes[''];
+  const activeRoute = hash === 'pindah-buku' ? 'transfer' : hash;
   document.getElementById('pageTitle').textContent = r.title;
   document.querySelectorAll('.nav-item, .bnav').forEach(el => {
-    el.classList.toggle('active', el.dataset.route === hash);
+    el.classList.toggle('active', el.dataset.route === activeRoute);
   });
   const c = document.getElementById('content');
   c.classList.remove('fade-in'); void c.offsetWidth; c.classList.add('fade-in');
+  if (window.DB) recomputeBalances(window.DB);
   r.render();
   window.scrollTo(0,0);
 };
@@ -1103,15 +1104,12 @@ function renderAnalysis() {
 
 // ============ TRANSFERS ============
 function renderTransfer() {
-  const isPindahBuku = (location.hash || '#/').slice(2) === 'pindah-buku';
   const transfers = (window.DB.transfers || []).slice().sort((a,b) => b.date.localeCompare(a.date));
-  const title = isPindahBuku ? 'Pindah Buku' : 'Transfer Antar Rekening';
-  const btnText = isPindahBuku ? '＋ Pindah Buku Baru' : '＋ Transfer Baru';
 
   document.getElementById('content').innerHTML = `
     <div class="mb-4 flex justify-between items-center">
-      <h3 class="font-semibold text-lg">${title}</h3>
-      <button onclick="window.openTransferForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">${btnText}</button>
+      <h3 class="font-semibold text-lg">Transfer Antar Rekening</h3>
+      <button onclick="window.openTransferForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Transfer Baru</button>
     </div>
     <div class="card rounded-xl overflow-hidden">
       <div class="table-responsive">
@@ -1155,14 +1153,9 @@ window.openTransferForm = function() {
     return;
   }
 
-  const isPindahBuku = (location.hash || '#/').slice(2) === 'pindah-buku';
-  const modalTitle = isPindahBuku ? 'Pindah Buku' : 'Transfer Antar Rekening';
-  const helperText = isPindahBuku ? '💡 Pindah buku memindahkan dana antar rekening tanpa mengubah total saldo.' : '💡 Transfer tidak dihitung sebagai pemasukan atau pengeluaran. Total saldo tetap sama.';
-  const adminLabel = isPindahBuku ? 'Biaya Admin / Fee' : 'Biaya Admin (opsional)';
-
-  window.openModal(`<h3 class="text-lg font-bold mb-4">${modalTitle}</h3>
+  window.openModal(`<h3 class="text-lg font-bold mb-4">Transfer Antar Rekening</h3>
     <div class="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-xs mb-3 text-indigo-700 dark:text-indigo-300">
-      ${helperText}
+      💡 Transfer tidak dihitung sebagai pemasukan atau pengeluaran. Total saldo tetap sama.
     </div>
     <form id="trForm" class="space-y-3">
       <div><label class="text-xs font-semibold">Dari Rekening</label>
@@ -1172,10 +1165,10 @@ window.openTransferForm = function() {
         <select name="to_account_id" class="w-full rounded px-3 py-2" required>${window.DB.accounts.map(a => '<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')}</select>
       </div>
       <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" step="1" required class="w-full rounded px-3 py-2"/></div>
-      <div><label class="text-xs font-semibold">${adminLabel}</label><input name="admin_fee" type="number" min="0" step="1" value="0" class="w-full rounded px-3 py-2"/></div>
+      <div><label class="text-xs font-semibold">Biaya Admin (opsional)</label><input name="admin_fee" type="number" min="0" step="1" value="0" class="w-full rounded px-3 py-2"/></div>
       <div><label class="text-xs font-semibold">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="${todayISO()}"/></div>
       <div><label class="text-xs font-semibold">Catatan (Opsional)</label><input name="note" class="w-full rounded px-3 py-2" placeholder="Contoh: Top up GoPay"/></div>
-      <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">${isPindahBuku ? 'Pindah Buku' : 'Transfer'}</button></div>
+      <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Transfer</button></div>
     </form>`, {
     onMount: root => {
       root.querySelector('#trForm').addEventListener('submit', async e => {
@@ -1218,7 +1211,7 @@ window.openTransferForm = function() {
         recomputeBalances(window.DB);
         await window.saveDB(window.currentUser.uid);
         window.closeModal();
-        window.toast(isPindahBuku ? 'Pindah buku berhasil' : 'Transfer berhasil', 'success');
+        window.toast('Transfer berhasil', 'success');
         renderTransfer();
       });
     }
