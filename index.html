@@ -637,14 +637,18 @@ window.openTransactionForm = function(id) {
 };
 
 // ============ CALENDAR ============
-let calMonth = new Date();
+let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+window.changeCalendarMonth = function(offset) {
+  calMonth.setMonth(calMonth.getMonth() + offset);
+  renderCalendar();
+};
 function renderCalendar() {
   const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
   const last = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0);
   let html = `<div class="flex justify-between items-center mb-4">
-    <button onclick="calMonth.setMonth(calMonth.getMonth()-1);renderCalendar()" class="px-3 py-1.5 rounded border hover:bg-gray-50">‹ Prev</button>
+    <button onclick="window.changeCalendarMonth(-1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">‹ Bulan Sebelumnya</button>
     <h3 class="font-semibold text-lg">${calMonth.toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</h3>
-    <button onclick="calMonth.setMonth(calMonth.getMonth()+1);renderCalendar()" class="px-3 py-1.5 rounded border hover:bg-gray-50">Next ›</button>
+    <button onclick="window.changeCalendarMonth(1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">Bulan Berikutnya ›</button>
   </div>
   <div class="grid grid-cols-7 gap-1 text-center text-xs mb-2 font-semibold">
     <div>Min</div><div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div>
@@ -670,8 +674,19 @@ function renderCalendar() {
 }
 
 // ============ BUDGET ============
+let budgetMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+window.changeBudgetMonth = function(offset) {
+  budgetMonth.setMonth(budgetMonth.getMonth() + offset);
+  renderBudget();
+};
+window.selectBudgetMonth = function(value) {
+  if (!/^\d{4}-\d{2}$/.test(value)) return;
+  const [year, month] = value.split('-').map(Number);
+  budgetMonth = new Date(year, month - 1, 1);
+  renderBudget();
+};
 function renderBudget() {
-  const cm = monthISO();
+  const cm = monthISO(budgetMonth);
   const budgets = window.DB.budgets.filter(b=>b.month===cm);
   const totalBudget = budgets.reduce((sum,b)=>sum+Number(b.amount||0),0);
   const budgetedCategories = new Set(budgets.map(b=>b.category_id));
@@ -681,8 +696,13 @@ function renderBudget() {
   const remaining = totalBudget-totalSpent;
   document.getElementById('content').innerHTML = `
     <div class="card rounded-xl p-4 mb-4">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="font-semibold text-lg">Budget Bulan Ini</h3>
+      <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <div class="flex items-center gap-2">
+          <button onclick="window.changeBudgetMonth(-1)" class="px-3 py-1.5 rounded border hover:bg-gray-50" aria-label="Bulan sebelumnya">‹</button>
+          <h3 class="font-semibold text-lg">Budget</h3>
+          <input type="month" aria-label="Pilih bulan budget" value="${cm}" onchange="window.selectBudgetMonth(this.value)" class="rounded px-2 py-1 border"/>
+          <button onclick="window.changeBudgetMonth(1)" class="px-3 py-1.5 rounded border hover:bg-gray-50" aria-label="Bulan berikutnya">›</button>
+        </div>
         <button onclick="window.openBudgetForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -720,7 +740,7 @@ window.openBudgetForm = function(id) {
   const b = id ? window.DB.budgets.find(x => x.id === id) : null;
   window.openModal(`<h3 class="text-lg font-bold mb-4">${b ? 'Edit' : 'Tambah'} Budget</h3><form id="bForm" class="space-y-3">
     <div><label class="text-xs font-semibold">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">${window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'" '+(b && b.category_id===c.id?'selected':'')+'>'+c.icon+' '+esc(c.name)+'</option>').join('')}</select></div>
-    <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${b ? b.month : monthISO()}"/></div>
+    <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${b ? b.month : monthISO(budgetMonth)}"/></div>
     <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="${b ? b.amount : ''}"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
@@ -731,6 +751,8 @@ window.openBudgetForm = function(id) {
         const data = { category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) };
         if (b) Object.assign(b, data);
         else window.DB.budgets.push({ id: uid('b'), ...data });
+        const [year, month] = data.month.split('-').map(Number);
+        budgetMonth = new Date(year, month - 1, 1);
         await window.saveDB(window.currentUser.uid);
         window.closeModal(); window.toast('Budget disimpan','success'); renderBudget();
       });
@@ -1048,17 +1070,34 @@ window.runRecurring = async function(id) {
 };
 
 // ============ REPORTS ============
+let dailyReportDate = todayISO();
+window.changeDailyReportDate = function(offset) {
+  const date = new Date(`${dailyReportDate}T00:00:00`);
+  date.setDate(date.getDate() + offset);
+  dailyReportDate = dateISO(date);
+  renderDailyReport();
+};
+window.selectDailyReportDate = function(value) {
+  const date = new Date(`${value}T00:00:00`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || dateISO(date) !== value) return;
+  dailyReportDate = value;
+  renderDailyReport();
+};
 function renderDailyReport() {
-  const date = todayISO();
+  const date = dailyReportDate;
   const txs = window.DB.transactions.filter(t=>t.transaction_date===date&&t.status==='done');
   const inc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const exp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const sav = txs.filter(t=>t.type==='saving').reduce((s,t)=>s+Number(t.amount),0);
   
   document.getElementById('content').innerHTML = `
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <button onclick="window.changeDailyReportDate(-1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">‹ Hari Sebelumnya</button>
+      <div class="text-center">
       <h3 class="font-semibold text-lg">Laporan Harian</h3>
-      <p class="text-sm muted">${fmtDate(date)}</p>
+        <input type="date" aria-label="Pilih tanggal laporan harian" value="${date}" onchange="window.selectDailyReportDate(this.value)" class="text-sm muted rounded px-2 py-1 border"/>
+      </div>
+      <button onclick="window.changeDailyReportDate(1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">Hari Berikutnya ›</button>
     </div>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4">
       <div class="card rounded-xl p-3 md:p-4"><div class="text-xs muted"> Pemasukan</div><div class="text-xl md:text-2xl font-bold text-emerald-600">${fmt(inc)}</div></div>
@@ -1067,7 +1106,7 @@ function renderDailyReport() {
       <div class="card rounded-xl p-3 md:p-4"><div class="text-xs muted">💰 Saldo Bersih</div><div class="text-xl md:text-2xl font-bold">${fmt(inc-exp-sav)}</div></div>
     </div>
     <div class="card rounded-xl p-4">
-      <h4 class="font-semibold mb-3">Transaksi Hari Ini</h4>
+      <h4 class="font-semibold mb-3">Transaksi ${fmtDate(date)}</h4>
       ${txs.length?txs.map(t=>{
         const cat=window.DB.categories.find(c=>c.id===t.category_id);
         const color = t.type==='income'?'text-emerald-600':t.type==='expense'?'text-red-600':'text-indigo-600';
@@ -1080,8 +1119,19 @@ function renderDailyReport() {
   `;
 }
 
+let monthlyReportMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+window.changeMonthlyReportMonth = function(offset) {
+  monthlyReportMonth.setMonth(monthlyReportMonth.getMonth() + offset);
+  renderMonthlyReport();
+};
+window.selectMonthlyReportMonth = function(value) {
+  if (!/^\d{4}-\d{2}$/.test(value)) return;
+  const [year, month] = value.split('-').map(Number);
+  monthlyReportMonth = new Date(year, month - 1, 1);
+  renderMonthlyReport();
+};
 function renderMonthlyReport() {
-  const cm = monthISO();
+  const cm = monthISO(monthlyReportMonth);
   const txs = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.status==='done');
   const inc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const exp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
@@ -1090,9 +1140,13 @@ function renderMonthlyReport() {
   txs.filter(t=>t.type==='expense').forEach(t=>{byCat[t.category_id]=(byCat[t.category_id]||0)+Number(t.amount);});
   
   document.getElementById('content').innerHTML = `
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <button onclick="window.changeMonthlyReportMonth(-1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">‹ Bulan Sebelumnya</button>
+      <div class="text-center">
       <h3 class="font-semibold text-lg">Laporan Bulanan</h3>
-      <p class="text-sm muted">${new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</p>
+        <input type="month" aria-label="Pilih bulan laporan" value="${cm}" onchange="window.selectMonthlyReportMonth(this.value)" class="text-sm rounded px-2 py-1 border"/>
+      </div>
+      <button onclick="window.changeMonthlyReportMonth(1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">Bulan Berikutnya ›</button>
     </div>
     <div class="grid grid-cols-3 gap-3 md:gap-4 mb-4">
       <div class="card rounded-xl p-3 md:p-4"><div class="text-xs muted">📥 Pemasukan</div><div class="text-xl md:text-2xl font-bold text-emerald-600">${fmt(inc)}</div></div>
