@@ -413,13 +413,19 @@ window.openModal = function(html, opts) {
 window.closeModal = function() { document.getElementById('modalRoot').innerHTML = ''; };
 
 function recomputeBalances(db) {
+  // 1. Reset semua saldo ke saldo awal
   db.accounts.forEach(a => a.balance = Number(a.opening_balance||0));
+  
+  // 2. Hitung dari transaksi biasa (HANYA income dan expense)
   (db.transactions || []).filter(t => t.status === 'done').forEach(t => {
     const acc = db.accounts.find(a => a.id === t.account_id);
     if(!acc) return;
-    if(t.type === 'income' || t.type === 'saving') acc.balance += Number(t.amount);
+    // 'saving' tidak mempengaruhi saldo rekening; hanya income yang menambah saldo.
+    if(t.type === 'income') acc.balance += Number(t.amount);
     else if(t.type === 'expense') acc.balance -= Number(t.amount);
   });
+  
+  // 3. Hitung dari Transfer (Pindah antar rekening)
   (db.transfers || []).forEach(tr => {
     const fromAcc = db.accounts.find(a => a.id === tr.from_account_id);
     const toAcc = db.accounts.find(a => a.id === tr.to_account_id);
@@ -574,16 +580,15 @@ window.openTransactionForm = function(id) {
   const t = id ? window.DB.transactions.find(x => x.id === id) : null;
   const isExpense = !t || t.type === 'expense';
   const isIncome = t && t.type === 'income';
-  const isSaving = t && t.type === 'saving';
   
   window.openModal('<h3 class="text-lg font-bold mb-4">'+(t?'Edit':'Tambah')+' Transaksi</h3><form id="txForm" class="space-y-3">'+
-    '<div class="grid grid-cols-3 gap-2">'+
-      '<label class="cursor-pointer"><input type="radio" name="type" value="income" class="hidden peer" '+(isIncome?'checked':'')+'/>'+
-      '<div class="peer-checked:ring-2 peer-checked:ring-emerald-500 p-2 rounded border text-center text-xs bg-gray-50 peer-checked:bg-emerald-50">📥<br/>Pemasukan</div></label>'+
-      '<label class="cursor-pointer"><input type="radio" name="type" value="expense" class="hidden peer" '+(isExpense?'checked':'')+'/>'+
-      '<div class="peer-checked:ring-2 peer-checked:ring-red-500 p-2 rounded border text-center text-xs bg-gray-50 peer-checked:bg-red-50">📤<br/>Pengeluaran</div></label>'+
-      '<label class="cursor-pointer"><input type="radio" name="type" value="saving" class="hidden peer" '+(isSaving?'checked':'')+'/>'+
-      '<div class="peer-checked:ring-2 peer-checked:ring-indigo-500 p-2 rounded border text-center text-xs bg-gray-50 peer-checked:bg-indigo-50">🏦<br/>Tabungan</div></label>'+
+    '<div class="grid grid-cols-2 gap-3">'+
+      '<label class="cursor-pointer">'+
+      '<input type="radio" name="type" value="income" class="hidden peer" '+(isIncome?'checked':'')+'/>'+
+      '<div class="peer-checked:ring-2 peer-checked:ring-emerald-500 peer-checked:bg-emerald-50 p-3 rounded-lg border text-center text-sm font-semibold transition-all">📥 Pemasukan</div></label>'+
+      '<label class="cursor-pointer">'+
+      '<input type="radio" name="type" value="expense" class="hidden peer" '+(isExpense?'checked':'')+'/>'+
+      '<div class="peer-checked:ring-2 peer-checked:ring-red-500 peer-checked:bg-red-50 p-3 rounded-lg border text-center text-sm font-semibold transition-all">📤 Pengeluaran</div></label>'+
     '</div>'+
     '<div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="'+(t?.amount||'')+'" placeholder="0"/></div>'+
     '<div class="grid grid-cols-2 gap-2">'+
@@ -781,21 +786,34 @@ window.openGoalForm = function() {
 
 window.addSaving = function(id) {
   const g = window.DB.savings_goals.find(x=>x.id===id);
-  window.openModal(`<h3 class="text-lg font-bold mb-4">Tambah Dana ke ${esc(g.name)}</h3><form id="addForm" class="space-y-3">
-    <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div>
-    <div><label class="text-xs font-semibold">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="${todayISO()}"/></div>
-    <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Tambah</button></div>
+  window.openModal(`<h3 class="text-lg font-bold mb-4">Update Progress: ${esc(g.name)}</h3>
+    <div class="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-xs mb-3 text-indigo-700 dark:text-indigo-300">
+      💡 <b>Catatan:</b> Menambah angka di sini HANYA memperbarui progress target. 
+      Saldo rekening fisik kamu TIDAK akan berubah. 
+      <br><br>
+      Jika kamu benar-benar memindahkan uang ke rekening khusus, silakan gunakan menu <b>Transfer</b>.
+    </div>
+    <form id="addForm" class="space-y-3">
+      <div><label class="text-xs font-semibold">Tambahkan Nominal ke Target</label>
+        <input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" placeholder="0"/>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" class="px-4 py-2 rounded border" data-close>Batal</button>
+        <button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Update Progress</button>
+      </div>
   </form>`, {
     onMount: root => {
       root.querySelector('#addForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const amount = Number(fd.get('amount'));
+        
+        // Hanya update angka target, tanpa transaksi atau penghitungan ulang saldo.
         g.current += amount;
-        window.DB.transactions.push({ id: uid('t'), account_id: window.DB.accounts[0].id, category_id: 'c33', type: 'saving', amount, transaction_date: fd.get('date'), description: 'Tabungan: '+g.name, status: 'done' });
-        recomputeBalances(window.DB);
         await window.saveDB(window.currentUser.uid);
-        window.closeModal(); window.toast('Dana ditambahkan','success'); renderSavings();
+        window.closeModal(); 
+        window.toast('Progress tabungan diperbarui (Saldo rekening tetap)', 'success'); 
+        renderSavings();
       });
     }
   });
