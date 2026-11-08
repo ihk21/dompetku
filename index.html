@@ -555,7 +555,8 @@ function renderTransactions() {
                 <td class="py-2 px-2">${cat?.icon||''} <span class="hidden sm:inline">${esc(cat?.name||'-')}</span></td>
                 <td class="py-2 px-2 hidden md:table-cell">${esc(t.description||'-')}</td>
                 <td class="text-right py-2 px-2 font-bold ${color}">${fmt(t.amount)}</td>
-                <td class="text-center py-2 px-2">
+                <td class="text-center py-2 px-2 flex justify-center gap-2">
+                  <button onclick="window.openTransactionForm('${t.id}')" class="text-blue-500 hover:underline text-xs">Edit</button>
                   <button onclick="window.deleteTx('${t.id}')" class="text-red-500 hover:underline text-xs">Hapus</button>
                 </td>
               </tr>`;
@@ -696,9 +697,15 @@ function renderBudget() {
           const pct = Math.min(100, (spent/b.amount)*100);
           const color = pct>=100?'bg-red-500':pct>=80?'bg-amber-500':'bg-emerald-500';
           return `<div class="border rounded-lg p-3">
-            <div class="flex justify-between mb-2">
+            <div class="flex justify-between items-center mb-2">
               <span class="font-semibold">${cat?.icon||''} ${esc(cat?.name)}</span>
-              <span class="text-sm muted">${fmt(spent)}/${fmt(b.amount)}</span>
+              <div class="flex gap-2">
+                <button onclick="window.openBudgetForm('${b.id}')" class="text-blue-500 text-xs hover:underline">Edit</button>
+                <button onclick="window.deleteBudget('${b.id}')" class="text-red-500 text-xs hover:underline">Hapus</button>
+              </div>
+            </div>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="muted">${fmt(spent)} / ${fmt(b.amount)}</span>
             </div>
             <div class="progress mb-2"><div class="${color}" style="width:${pct}%"></div></div>
             <div class="text-xs ${pct>=100?'text-red-600':pct>=80?'text-amber-600':'text-emerald-600'} font-semibold">${pct.toFixed(0)}% terpakai</div>
@@ -709,23 +716,33 @@ function renderBudget() {
   `;
 }
 
-window.openBudgetForm = function() {
-  window.openModal(`<h3 class="text-lg font-bold mb-4">Tambah Budget</h3><form id="bForm" class="space-y-3">
-    <div><label class="text-xs font-semibold">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">${window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'">'+c.icon+' '+esc(c.name)+'</option>').join('')}</select></div>
-    <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${monthISO()}"/></div>
-    <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div>
+window.openBudgetForm = function(id) {
+  const b = id ? window.DB.budgets.find(x => x.id === id) : null;
+  window.openModal(`<h3 class="text-lg font-bold mb-4">${b ? 'Edit' : 'Tambah'} Budget</h3><form id="bForm" class="space-y-3">
+    <div><label class="text-xs font-semibold">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">${window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'" '+(b && b.category_id===c.id?'selected':'')+'>'+c.icon+' '+esc(c.name)+'</option>').join('')}</select></div>
+    <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${b ? b.month : monthISO()}"/></div>
+    <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="${b ? b.amount : ''}"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
       root.querySelector('#bForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        window.DB.budgets.push({ id: uid('b'), category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) });
+        const data = { category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) };
+        if (b) Object.assign(b, data);
+        else window.DB.budgets.push({ id: uid('b'), ...data });
         await window.saveDB(window.currentUser.uid);
-        window.closeModal(); window.toast('Budget ditambahkan','success'); renderBudget();
+        window.closeModal(); window.toast('Budget disimpan','success'); renderBudget();
       });
     }
   });
+};
+
+window.deleteBudget = async function(id) {
+  if(!await window.confirmDialog('Hapus budget ini?')) return;
+  window.DB.budgets = window.DB.budgets.filter(b => b.id !== id);
+  await window.saveDB(window.currentUser.uid);
+  window.toast('Budget dihapus','success'); renderBudget();
 };
 
 // ============ SAVINGS ============
@@ -750,35 +767,41 @@ function renderSavings() {
         return `<div class="card rounded-xl p-4">
           <div class="flex justify-between mb-2">
             <div class="font-bold">${esc(g.name)}</div>
-            <button onclick="window.deleteGoal('${g.id}')" class="text-red-500 text-xs">Hapus</button>
+            <div class="flex gap-2">
+              <button onclick="window.openGoalForm('${g.id}')" class="text-blue-500 text-xs hover:underline">Edit</button>
+              <button onclick="window.deleteGoal('${g.id}')" class="text-red-500 text-xs hover:underline">Hapus</button>
+            </div>
           </div>
           <div class="text-2xl font-bold mb-2">${fmt(g.current)}<span class="text-sm muted">/${fmt(g.target)}</span></div>
           <div class="progress mb-2"><div class="${pct>=100?'bg-emerald-500':'bg-indigo-500'}" style="width:${Math.min(100,pct)}%"></div></div>
-          <div class="text-xs muted">${pct.toFixed(1)}% • ${daysBetween(todayISO(),g.deadline)} hari lagi</div>
-          <button onclick="window.addSaving('${g.id}')" class="mt-3 w-full bg-indigo-600 text-white py-2 rounded-lg text-sm"> Tambah Dana</button>
+          <div class="text-xs muted mb-3">${pct.toFixed(1)}% • Deadline: ${fmtDate(g.deadline)}</div>
+          <button onclick="window.addSaving('${g.id}')" class="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm">📈 Update Progress (Tambah Dana)</button>
         </div>`;
       }).join('')||'<div class="col-span-2 text-center muted py-8">Belum ada target</div>'}
     </div>
   `;
 }
 
-window.openGoalForm = function() {
-  window.openModal(`<h3 class="text-lg font-bold mb-4">Target Tabungan Baru</h3><form id="gForm" class="space-y-3">
-    <div><label class="text-xs font-semibold">Nama</label><input name="name" required class="w-full rounded px-3 py-2"/></div>
+window.openGoalForm = function(id) {
+  const g = id ? window.DB.savings_goals.find(x => x.id === id) : null;
+  window.openModal(`<h3 class="text-lg font-bold mb-4">${g ? 'Edit' : 'Target Tabungan Baru'}</h3><form id="gForm" class="space-y-3">
+    <div><label class="text-xs font-semibold">Nama</label><input name="name" required class="w-full rounded px-3 py-2" value="${g ? esc(g.name) : ''}"/></div>
     <div class="grid grid-cols-2 gap-2">
-      <div><label class="text-xs font-semibold">Target</label><input name="target" type="number" min="1" required class="w-full rounded px-3 py-2"/></div>
-      <div><label class="text-xs font-semibold">Saldo Awal</label><input name="current" type="number" min="0" class="w-full rounded px-3 py-2" value="0"/></div>
+      <div><label class="text-xs font-semibold">Target</label><input name="target" type="number" min="1" required class="w-full rounded px-3 py-2" value="${g ? g.target : ''}"/></div>
+      <div><label class="text-xs font-semibold">Terkumpul Saat Ini</label><input name="current" type="number" min="0" class="w-full rounded px-3 py-2" value="${g ? g.current : 0}"/></div>
     </div>
-    <div><label class="text-xs font-semibold">Deadline</label><input name="deadline" type="date" required class="w-full rounded px-3 py-2"/></div>
+    <div><label class="text-xs font-semibold">Deadline</label><input name="deadline" type="date" required class="w-full rounded px-3 py-2" value="${g ? g.deadline : ''}"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
       root.querySelector('#gForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        window.DB.savings_goals.push({ id: uid('g'), name: fd.get('name'), target: Number(fd.get('target')), current: Number(fd.get('current')), deadline: fd.get('deadline') });
+        const data = { name: fd.get('name'), target: Number(fd.get('target')), current: Number(fd.get('current')), deadline: fd.get('deadline') };
+        if (g) Object.assign(g, data);
+        else window.DB.savings_goals.push({ id: uid('g'), ...data });
         await window.saveDB(window.currentUser.uid);
-        window.closeModal(); window.toast('Target ditambahkan','success'); renderSavings();
+        window.closeModal(); window.toast(g ? 'Target diperbarui' : 'Target ditambahkan','success'); renderSavings();
       });
     }
   });
@@ -1394,24 +1417,28 @@ function renderCategories() {
             <div class="font-semibold">${esc(c.name)}</div>
             <div class="text-xs muted capitalize">${c.type}</div>
           </div>
-          <button onclick="window.deleteCategory('${c.id}')" class="p-1.5 rounded hover:bg-black/10">🗑️</button>
+          <div class="flex gap-1">
+            <button onclick="window.openCategoryForm('${c.id}')" class="p-1.5 rounded hover:bg-black/10 text-blue-500">✏️</button>
+            <button onclick="window.deleteCategory('${c.id}')" class="p-1.5 rounded hover:bg-black/10 text-red-500">🗑️</button>
+          </div>
         </div>
       `).join('')}
     </div>
   `;
 }
 
-window.openCategoryForm = function() {
-  window.openModal(`<h3 class="text-lg font-bold mb-4">Kategori Baru</h3><form id="cForm" class="space-y-3">
-    <div><label class="text-xs font-semibold">Nama</label><input name="name" required class="w-full rounded px-3 py-2"/></div>
+window.openCategoryForm = function(id) {
+  const c = id ? window.DB.categories.find(x => x.id === id) : null;
+  window.openModal(`<h3 class="text-lg font-bold mb-4">${c ? 'Edit' : 'Kategori Baru'}</h3><form id="cForm" class="space-y-3">
+    <div><label class="text-xs font-semibold">Nama</label><input name="name" required class="w-full rounded px-3 py-2" value="${c ? esc(c.name) : ''}"/></div>
     <div><label class="text-xs font-semibold">Jenis</label><select name="type" class="w-full rounded px-3 py-2">
-      <option value="income">Pemasukan</option>
-      <option value="expense">Pengeluaran</option>
-      <option value="saving">Tabungan</option>
+      <option value="income" ${c && c.type==='income'?'selected':''}>Pemasukan</option>
+      <option value="expense" ${c && c.type==='expense'?'selected':''}>Pengeluaran</option>
+      <option value="saving" ${c && c.type==='saving'?'selected':''}>Tabungan</option>
     </select></div>
     <div class="grid grid-cols-2 gap-2">
-      <div><label class="text-xs font-semibold">Icon</label><input name="icon" class="w-full rounded px-3 py-2" placeholder="🏷️"/></div>
-      <div><label class="text-xs font-semibold">Warna</label><input name="color" type="color" class="w-full rounded px-3 py-2 h-10" value="#3b82f6"/></div>
+      <div><label class="text-xs font-semibold">Icon</label><input name="icon" class="w-full rounded px-3 py-2" value="${c ? esc(c.icon||'') : ''}" placeholder="🏷️"/></div>
+      <div><label class="text-xs font-semibold">Warna</label><input name="color" type="color" class="w-full rounded px-3 py-2 h-10" value="${c ? c.color : '#3b82f6'}"/></div>
     </div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
@@ -1419,9 +1446,11 @@ window.openCategoryForm = function() {
       root.querySelector('#cForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        window.DB.categories.push({ id: uid('c'), name: fd.get('name'), type: fd.get('type'), icon: fd.get('icon')||'', color: fd.get('color') });
+        const data = { name: fd.get('name'), type: fd.get('type'), icon: fd.get('icon')||'', color: fd.get('color') };
+        if (c) Object.assign(c, data);
+        else window.DB.categories.push({ id: uid('c'), ...data });
         await window.saveDB(window.currentUser.uid);
-        window.closeModal(); window.toast('Kategori ditambahkan','success'); renderCategories();
+        window.closeModal(); window.toast('Kategori disimpan','success'); renderCategories();
       });
     }
   });
