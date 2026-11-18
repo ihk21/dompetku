@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="theme-color" content="#3b82f6"/>
 <title>DompetKu — Cloud Sync</title>
-<link rel="manifest" href="./manifest.json"/>
+<link rel="manifest" href="/manifest.json"/>
 <!-- Favicon -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%233b82f6'/%3E%3Ctext x='96' y='130' font-size='120' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3ED%3C/text%3E%3C/svg%3E"/>
-<link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png"/>
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { darkMode: 'class' };
@@ -197,7 +197,7 @@ let unsubscribeUserData = null;
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', { scope: './' })
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(registration => {
         console.log('Service worker registered:', registration.scope);
         registration.update().catch(error => console.error('Service worker update check failed:', error));
@@ -364,6 +364,66 @@ function defaultDB() {
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-3); }
 
 // FIXED: Format angka yang benar
+// ============ FORMAT INPUT ANGKA OTOMATIS ============
+window.formatInputRibuan = function(input) {
+  let value = input.value.replace(/\./g, '').replace(/\D/g, '');
+  if (value) {
+    input.value = parseInt(value, 10).toLocaleString('id-ID');
+  } else {
+    input.value = '';
+  }
+};
+
+window.parseAngka = function(str) {
+  if (!str) return 0;
+  return Number(String(str).replace(/\./g, '')) || 0;
+};
+
+// ============ BUDGET CHECKER ============
+window.checkBudgetInfo = function(category_id, amount, date) {
+  if (!category_id || !amount || !date) return null;
+  
+  const month = date.substring(0, 7); // Format: YYYY-MM
+  const budget = window.DB.budgets.find(b => b.category_id === category_id && b.month === month);
+  
+  if (!budget) {
+    return { 
+      hasBudget: false, 
+      message: 'ℹ️ Kategori ini belum memiliki budget bulan ini',
+      suggestion: '💡 Saran: Buat budget untuk kategori ini agar pengeluaran lebih terkontrol'
+    };
+  }
+  
+  // Hitung total pengeluaran kategori ini di bulan tersebut (termasuk transaksi yang sedang dibuat)
+  const currentSpent = window.DB.transactions
+    .filter(t => t.transaction_date.startsWith(month) 
+              && t.type === 'expense' 
+              && t.category_id === category_id 
+              && t.status === 'done')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  
+  const totalAfterThis = currentSpent + Number(amount);
+  const remaining = budget.amount - totalAfterThis;
+  const isOverBudget = remaining < 0;
+  const percentage = (totalAfterThis / budget.amount) * 100;
+  
+  return {
+    hasBudget: true,
+    budgetAmount: budget.amount,
+    currentSpent: currentSpent,
+    totalAfterThis: totalAfterThis,
+    remaining: remaining,
+    isOverBudget: isOverBudget,
+    percentage: percentage,
+    message: isOverBudget 
+      ? `⚠️ Transaksi ini akan membuat pengeluaran ${fmt(totalAfterThis)} melebihi budget ${fmt(budget.amount)} (selisih ${fmt(Math.abs(remaining))})`
+      : `✅ Sisa budget setelah transaksi ini: ${fmt(remaining)} dari ${fmt(budget.amount)} (${percentage.toFixed(0)}% terpakai)`,
+    suggestion: isOverBudget 
+      ? '💡 Saran: Pertimbangkan untuk menambah budget kategori ini atau kurangi pengeluaran di kategori lain'
+      : null
+  };
+};
+
 const fmt = n => {
   const v = Number(n||0);
   const absVal = Math.abs(v);
@@ -591,7 +651,7 @@ window.openTransactionForm = function(id) {
       '<input type="radio" name="type" value="expense" class="hidden peer" '+(isExpense?'checked':'')+'/>'+
       '<div class="peer-checked:ring-2 peer-checked:ring-red-500 peer-checked:bg-red-50 p-3 rounded-lg border text-center text-sm font-semibold transition-all">📤 Pengeluaran</div></label>'+
     '</div>'+
-    '<div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="'+(t?.amount||'')+'" placeholder="0"/></div>'+
+    '<div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="text" inputmode="numeric" required class="w-full rounded px-3 py-2" value="'+(t?.amount ? Number(t.amount).toLocaleString('id-ID') : '')+'" placeholder="0"/></div>'+
     '<div class="grid grid-cols-2 gap-2">'+
       '<div><label class="text-xs font-semibold">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="'+(t?.transaction_date||todayISO())+'"/></div>'+
       '<div><label class="text-xs font-semibold">Rekening</label><select name="account_id" class="w-full rounded px-3 py-2">'+window.DB.accounts.map(a=>'<option value="'+a.id+'" '+(t?.account_id===a.id?'selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>'+
@@ -602,25 +662,85 @@ window.openTransactionForm = function(id) {
     onMount: root => {
       const form = root.querySelector('#txForm');
       const catSel = root.querySelector('#catSel');
+      const amountInput = form.querySelector('input[name=amount]');
+      const dateInput = form.querySelector('input[name=date]');
+      
+      // Container untuk menampilkan info budget
+      const budgetInfoDiv = document.createElement('div');
+      budgetInfoDiv.id = 'budgetInfo';
+      budgetInfoDiv.className = 'text-xs p-2 rounded hidden';
+      form.insertBefore(budgetInfoDiv, form.querySelector('.flex.justify-end'));
       
       const refreshCats = () => {
         const type = form.querySelector('input[name=type]:checked')?.value || 'expense';
         const cats = window.DB.categories.filter(c => c.type === type);
         catSel.innerHTML = cats.map(c => '<option value="'+c.id+'" '+(t?.category_id===c.id?'selected':'')+'>'+c.icon+' '+esc(c.name)+'</option>').join('');
+        checkAndUpdateBudgetInfo();
+      };
+      
+      const checkAndUpdateBudgetInfo = () => {
+        const type = form.querySelector('input[name=type]:checked')?.value;
+        const categoryId = catSel.value;
+        const amount = window.parseAngka(amountInput.value);
+        const date = dateInput.value;
+        
+        if (type === 'expense' && categoryId && amount > 0 && date) {
+          const info = window.checkBudgetInfo(categoryId, amount, date);
+          if (info) {
+            budgetInfoDiv.classList.remove('hidden');
+            if (info.isOverBudget) {
+              budgetInfoDiv.className = 'text-xs p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800';
+              budgetInfoDiv.innerHTML = `<div class="font-semibold mb-1">${info.message}</div>${info.suggestion ? `<div class="mt-1">${info.suggestion}</div>` : ''}`;
+            } else if (!info.hasBudget) {
+              budgetInfoDiv.className = 'text-xs p-2 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800';
+              budgetInfoDiv.innerHTML = `<div class="font-semibold mb-1">${info.message}</div><div class="mt-1">${info.suggestion}</div>`;
+            } else {
+              budgetInfoDiv.className = 'text-xs p-2 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800';
+              budgetInfoDiv.innerHTML = info.message;
+            }
+          } else {
+            budgetInfoDiv.classList.add('hidden');
+          }
+        } else {
+          budgetInfoDiv.classList.add('hidden');
+        }
       };
       
       refreshCats();
       form.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', refreshCats));
+      catSel.addEventListener('change', checkAndUpdateBudgetInfo);
+      amountInput.addEventListener('input', () => {
+        window.formatInputRibuan(amountInput);
+        checkAndUpdateBudgetInfo();
+      });
+      dateInput.addEventListener('change', checkAndUpdateBudgetInfo);
       
       form.addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(form);
+        const type = fd.get('type');
+        const categoryId = fd.get('category_id');
+        const amount = window.parseAngka(fd.get('amount'));
+        const date = fd.get('date');
+        
+        // Cek budget sebelum save (hanya untuk expense)
+        if (type === 'expense' && categoryId && amount > 0 && date) {
+          const info = window.checkBudgetInfo(categoryId, amount, date);
+          if (info && info.isOverBudget) {
+            const confirmed = await window.confirmDialog(
+              '⚠️ Peringatan Over Budget',
+              `${info.message}\n\n${info.suggestion}\n\nApakah Anda tetap ingin menyimpan transaksi ini?`
+            );
+            if (!confirmed) return; // User batal
+          }
+        }
+        
         const data = { 
           account_id: fd.get('account_id'), 
-          category_id: fd.get('category_id'), 
-          type: fd.get('type'), 
-          amount: Number(fd.get('amount')), 
-          transaction_date: fd.get('date'), 
+          category_id: categoryId, 
+          type: type, 
+          amount: amount, 
+          transaction_date: date, 
           description: fd.get('description')||'', 
           status: 'done' 
         };
@@ -685,15 +805,28 @@ window.selectBudgetMonth = function(value) {
   budgetMonth = new Date(year, month - 1, 1);
   renderBudget();
 };
+
 function renderBudget() {
   const cm = monthISO(budgetMonth);
-  const budgets = window.DB.budgets.filter(b=>b.month===cm);
-  const totalBudget = budgets.reduce((sum,b)=>sum+Number(b.amount||0),0);
-  const budgetedCategories = new Set(budgets.map(b=>b.category_id));
-  const totalSpent = window.DB.transactions
-    .filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&budgetedCategories.has(t.category_id)&&t.status==='done')
-    .reduce((sum,t)=>sum+Number(t.amount||0),0);
-  const remaining = totalBudget-totalSpent;
+  const budgets = window.DB.budgets.filter(b => b.month === cm);
+  
+  // 1. Hitung TOTAL semua budget yang dibuat bulan ini
+  const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+  
+  // 2. Hitung TOTAL semua pengeluaran dari kategori yang punya budget (TERMASUK YANG OVER)
+  const totalSpent = budgets.reduce((sum, b) => {
+    const spentInThisCategory = window.DB.transactions
+      .filter(t => t.transaction_date.startsWith(cm) 
+                && t.type === 'expense' 
+                && t.category_id === b.category_id 
+                && t.status === 'done')
+      .reduce((s, t) => s + Number(t.amount), 0);
+    return sum + spentInThisCategory;
+  }, 0);
+  
+  // 3. Sisa budget bisa minus (defisit) jika totalSpent > totalBudget
+  const remaining = totalBudget - totalSpent;
+  
   document.getElementById('content').innerHTML = `
     <div class="card rounded-xl p-4 mb-4">
       <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
@@ -705,20 +838,26 @@ function renderBudget() {
         </div>
         <button onclick="window.openBudgetForm()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">＋ Tambah</button>
       </div>
+      
+      <!-- PERBAIKAN DI SINI: Kartu ringkasan sekarang menggunakan totalSpent yang akurat -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div class="card rounded-lg p-3"><div class="text-xs muted">Total Budget</div><div class="text-xl font-bold">${fmt(totalBudget)}</div></div>
         <div class="card rounded-lg p-3"><div class="text-xs muted">Total Terpakai</div><div class="text-xl font-bold text-amber-600">${fmt(totalSpent)}</div></div>
-        <div class="card rounded-lg p-3"><div class="text-xs muted">Sisa Budget</div><div class="text-xl font-bold ${remaining<0?'text-red-600':'text-emerald-600'}">${fmt(remaining)}</div></div>
+        <div class="card rounded-lg p-3"><div class="text-xs muted">Sisa Budget</div><div class="text-xl font-bold ${remaining < 0 ? 'text-red-600' : 'text-emerald-600'}">${fmt(remaining)}</div></div>
       </div>
+      
       <div class="space-y-3">
-        ${budgets.map(b=>{
-          const cat = window.DB.categories.find(c=>c.id===b.category_id);
-          const spent = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.type==='expense'&&t.category_id===b.category_id&&t.status==='done').reduce((s,t)=>s+Number(t.amount),0);
-          const pct = Math.min(100, (spent/b.amount)*100);
-          const color = pct>=100?'bg-red-500':pct>=80?'bg-amber-500':'bg-emerald-500';
+        ${budgets.map(b => {
+          const cat = window.DB.categories.find(c => c.id === b.category_id);
+          const spent = window.DB.transactions
+            .filter(t => t.transaction_date.startsWith(cm) && t.type === 'expense' && t.category_id === b.category_id && t.status === 'done')
+            .reduce((s, t) => s + Number(t.amount), 0);
+          const pct = b.amount > 0 ? Math.min(100, (spent / b.amount) * 100) : 0;
+          const color = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+          
           return `<div class="border rounded-lg p-3">
             <div class="flex justify-between items-center mb-2">
-              <span class="font-semibold">${cat?.icon||''} ${esc(cat?.name)}</span>
+              <span class="font-semibold">${cat?.icon || ''} ${esc(cat?.name)}</span>
               <div class="flex gap-2">
                 <button onclick="window.openBudgetForm('${b.id}')" class="text-blue-500 text-xs hover:underline">Edit</button>
                 <button onclick="window.deleteBudget('${b.id}')" class="text-red-500 text-xs hover:underline">Hapus</button>
@@ -728,9 +867,9 @@ function renderBudget() {
               <span class="muted">${fmt(spent)} / ${fmt(b.amount)}</span>
             </div>
             <div class="progress mb-2"><div class="${color}" style="width:${pct}%"></div></div>
-            <div class="text-xs ${pct>=100?'text-red-600':pct>=80?'text-amber-600':'text-emerald-600'} font-semibold">${pct.toFixed(0)}% terpakai</div>
+            <div class="text-xs ${pct >= 100 ? 'text-red-600' : pct >= 80 ? 'text-amber-600' : 'text-emerald-600'} font-semibold">${pct.toFixed(0)}% terpakai</div>
           </div>`;
-        }).join('')||'<div class="text-center muted py-8">Belum ada budget</div>'}
+        }).join('') || '<div class="text-center muted py-8">Belum ada budget bulan ini</div>'}
       </div>
     </div>
   `;
@@ -741,14 +880,16 @@ window.openBudgetForm = function(id) {
   window.openModal(`<h3 class="text-lg font-bold mb-4">${b ? 'Edit' : 'Tambah'} Budget</h3><form id="bForm" class="space-y-3">
     <div><label class="text-xs font-semibold">Kategori</label><select name="category_id" class="w-full rounded px-3 py-2">${window.DB.categories.filter(c=>c.type==='expense').map(c=>'<option value="'+c.id+'" '+(b && b.category_id===c.id?'selected':'')+'>'+c.icon+' '+esc(c.name)+'</option>').join('')}</select></div>
     <div><label class="text-xs font-semibold">Bulan</label><input name="month" type="month" required class="w-full rounded px-3 py-2" value="${b ? b.month : monthISO(budgetMonth)}"/></div>
-    <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" value="${b ? b.amount : ''}"/></div>
+    <div><label class="text-xs font-semibold">Jumlah Budget</label><input name="amount" type="text" inputmode="numeric" required class="w-full rounded px-3 py-2" value="${b ? Number(b.amount).toLocaleString('id-ID') : ''}"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
+        const amountInput = root.querySelector('input[name=amount]');
+        amountInput.addEventListener('input', () => window.formatInputRibuan(amountInput));
       root.querySelector('#bForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const data = { category_id: fd.get('category_id'), month: fd.get('month'), amount: Number(fd.get('amount')) };
+        const data = { category_id: fd.get('category_id'), month: fd.get('month'), amount: window.parseAngka(fd.get('amount')) };
         if (b) Object.assign(b, data);
         else window.DB.budgets.push({ id: uid('b'), ...data });
         const [year, month] = data.month.split('-').map(Number);
@@ -809,17 +950,21 @@ window.openGoalForm = function(id) {
   window.openModal(`<h3 class="text-lg font-bold mb-4">${g ? 'Edit' : 'Target Tabungan Baru'}</h3><form id="gForm" class="space-y-3">
     <div><label class="text-xs font-semibold">Nama</label><input name="name" required class="w-full rounded px-3 py-2" value="${g ? esc(g.name) : ''}"/></div>
     <div class="grid grid-cols-2 gap-2">
-      <div><label class="text-xs font-semibold">Target</label><input name="target" type="number" min="1" required class="w-full rounded px-3 py-2" value="${g ? g.target : ''}"/></div>
-      <div><label class="text-xs font-semibold">Terkumpul Saat Ini</label><input name="current" type="number" min="0" class="w-full rounded px-3 py-2" value="${g ? g.current : 0}"/></div>
+      <div><label class="text-xs font-semibold">Target</label><input name="target" type="text" inputmode="numeric" required class="w-full rounded px-3 py-2" value="${g ? Number(g.target).toLocaleString('id-ID') : ''}" placeholder="0"/></div>
+      <div><label class="text-xs font-semibold">Terkumpul Saat Ini</label><input name="current" type="text" inputmode="numeric" class="w-full rounded px-3 py-2" value="${g ? Number(g.current).toLocaleString('id-ID') : '0'}" placeholder="0"/></div>
     </div>
     <div><label class="text-xs font-semibold">Deadline</label><input name="deadline" type="date" required class="w-full rounded px-3 py-2" value="${g ? g.deadline : ''}"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
+      const targetInput = root.querySelector('input[name=target]');
+      const currentInput = root.querySelector('input[name=current]');
+      targetInput.addEventListener('input', () => window.formatInputRibuan(targetInput));
+      currentInput.addEventListener('input', () => window.formatInputRibuan(currentInput));
       root.querySelector('#gForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const data = { name: fd.get('name'), target: Number(fd.get('target')), current: Number(fd.get('current')), deadline: fd.get('deadline') };
+        const data = { name: fd.get('name'), target: window.parseAngka(fd.get('target')), current: window.parseAngka(fd.get('current')), deadline: fd.get('deadline') };
         if (g) Object.assign(g, data);
         else window.DB.savings_goals.push({ id: uid('g'), ...data });
         await window.saveDB(window.currentUser.uid);
@@ -840,7 +985,7 @@ window.addSaving = function(id) {
     </div>
     <form id="addForm" class="space-y-3">
       <div><label class="text-xs font-semibold">Tambahkan Nominal ke Target</label>
-        <input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2" placeholder="0"/>
+        <input name="amount" type="text" inputmode="numeric" required class="w-full rounded px-3 py-2" placeholder="0"/>
       </div>
       <div class="flex justify-end gap-2">
         <button type="button" class="px-4 py-2 rounded border" data-close>Batal</button>
@@ -848,12 +993,12 @@ window.addSaving = function(id) {
       </div>
   </form>`, {
     onMount: root => {
+      const amountInput = root.querySelector('input[name=amount]');
+      amountInput.addEventListener('input', () => window.formatInputRibuan(amountInput));
       root.querySelector('#addForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const amount = Number(fd.get('amount'));
-        
-        // Hanya update angka target, tanpa transaksi atau penghitungan ulang saldo.
+        const amount = window.parseAngka(fd.get('amount'));
         g.current += amount;
         await window.saveDB(window.currentUser.uid);
         window.closeModal(); 
@@ -913,26 +1058,29 @@ window.openAccountForm = function(id) {
       <option value="ewallet" ${a?.type==='ewallet'?'selected':''}>E-Wallet</option>
     </select></div>
     <div><label class="text-xs font-semibold">Warna</label><input name="color" type="color" class="w-full rounded px-3 py-2 h-10" value="${a?.color||'#3b82f6'}"/></div>
-    <div><label class="text-xs font-semibold">Saldo Awal</label><input name="opening_balance" type="number" class="w-full rounded px-3 py-2" value="${a?.opening_balance||0}"/></div>
+    <div><label class="text-xs font-semibold">Saldo Awal</label><input name="opening_balance" type="text" inputmode="numeric" class="w-full rounded px-3 py-2" value="${a ? Number(a.opening_balance||0).toLocaleString('id-ID') : '0'}" placeholder="0"/></div>
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
+      const balanceInput = root.querySelector('input[name=opening_balance]');
+      balanceInput.addEventListener('input', () => window.formatInputRibuan(balanceInput));
       root.querySelector('#aForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
+        const openingBal = window.parseAngka(fd.get('opening_balance'));
         if(a) { 
           a.name = fd.get('name'); 
           a.type = fd.get('type'); 
           a.color = fd.get('color'); 
-          a.opening_balance = Number(fd.get('opening_balance')); 
+          a.opening_balance = openingBal; 
         } else {
           window.DB.accounts.push({ 
             id: uid('a'), 
             name: fd.get('name'), 
             type: fd.get('type'), 
             color: fd.get('color'), 
-            opening_balance: Number(fd.get('opening_balance')), 
-            balance: Number(fd.get('opening_balance')) 
+            opening_balance: openingBal, 
+            balance: openingBal 
           }); 
         }
         recomputeBalances(window.DB);
@@ -1004,7 +1152,7 @@ window.openRecurringForm = function() {
     <div class="grid grid-cols-3 gap-2">${['income','expense','saving'].map(type => '<label class="cursor-pointer"><input type="radio" name="type" value="'+type+'" class="hidden peer" '+(type==='expense'?'checked':'')+'/>'+ 
       '<div class="peer-checked:ring-2 peer-checked:ring-blue-500 p-2 rounded border text-center text-xs">'+(type==='income'?'Pemasukan':type==='expense'?'Pengeluaran':'Tabungan')+'</div></label>').join('')}</div>
     <div class="grid grid-cols-2 gap-2">
-      <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" required class="w-full rounded px-3 py-2"/></div>
+      <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="text" inputmode="numeric" required class="w-full rounded px-3 py-2" placeholder="0"/></div>
       <div><label class="text-xs font-semibold">Frekuensi</label><select name="frequency" class="w-full rounded px-3 py-2">
         <option value="daily">Harian</option>
         <option value="weekly">Mingguan</option>
@@ -1021,6 +1169,8 @@ window.openRecurringForm = function() {
     <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Simpan</button></div>
   </form>`, {
     onMount: root => {
+      const amountInput = root.querySelector('input[name=amount]');
+      amountInput.addEventListener('input', () => window.formatInputRibuan(amountInput));
       root.querySelector('#rForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
@@ -1028,7 +1178,7 @@ window.openRecurringForm = function() {
           id: uid('r'), 
           name: fd.get('name'), 
           type: fd.get('type'),
-          amount: Number(fd.get('amount')), 
+          amount: window.parseAngka(fd.get('amount')), 
           frequency: fd.get('frequency'), 
           category_id: fd.get('category_id'), 
           account_id: fd.get('account_id'), 
@@ -1274,34 +1424,173 @@ function renderCompare() {
   }
 }
 
+// ============ ANALISIS: NAVIGASI BULAN ============
+let analysisMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+window.changeAnalysisMonth = function(offset) {
+  analysisMonth.setMonth(analysisMonth.getMonth() + offset);
+  renderAnalysis();
+};
+
+window.selectAnalysisMonth = function(value) {
+  if (!/^\d{4}-\d{2}$/.test(value)) return;
+  const [year, month] = value.split('-').map(Number);
+  analysisMonth = new Date(year, month - 1, 1);
+  renderAnalysis();
+};
+
 function renderAnalysis() {
-  const cm = monthISO();
-  const txs = window.DB.transactions.filter(t=>t.transaction_date.startsWith(cm)&&t.status==='done');
+  const cm = monthISO(analysisMonth);
+  const txs = window.DB.transactions.filter(t => t.transaction_date.startsWith(cm) && t.status === 'done');
+  const inc = txs.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const exp = txs.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const sav = txs.filter(t => t.type === 'saving').reduce((s, t) => s + Number(t.amount), 0);
+
+  // === Perbandingan dengan bulan sebelumnya ===
+  const prevDate = new Date(analysisMonth.getFullYear(), analysisMonth.getMonth() - 1, 1);
+  const pm = monthISO(prevDate);
+  const prevExp = window.DB.transactions
+    .filter(t => t.transaction_date.startsWith(pm) && t.type === 'expense' && t.status === 'done')
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const trendDiff = exp - prevExp;
+  const trendPct = prevExp > 0 ? ((trendDiff / prevExp) * 100).toFixed(1) : null;
+  const trendLabel = trendDiff > 0 ? '⬆️ Naik' : trendDiff < 0 ? '⬇️ Turun' : '➖ Tetap';
+  const trendColor = trendDiff > 0 ? 'text-red-600' : trendDiff < 0 ? 'text-emerald-600' : 'muted';
+
+  // === Hitung pengeluaran per kategori ===
   const byCat = {};
-  txs.filter(t=>t.type==='expense').forEach(t=>{byCat[t.category_id]=(byCat[t.category_id]||0)+Number(t.amount);});
-  const top = Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
-  const topCat = top?window.DB.categories.find(c=>c.id===top[0]):null;
-  
+  txs.filter(t => t.type === 'expense').forEach(t => {
+    byCat[t.category_id] = (byCat[t.category_id] || 0) + Number(t.amount);
+  });
+
+  // === Mapping budget bulan ini ===
+  const budgets = (window.DB.budgets || []).filter(b => b.month === cm);
+  const budgetMap = {};
+  budgets.forEach(b => { budgetMap[b.category_id] = Number(b.amount || 0); });
+
+  // === Rasio keuangan ===
+  const rasioTabungan = inc > 0 ? (sav / inc * 100) : 0;
+  const rasioPengeluaran = inc > 0 ? (exp / inc * 100) : 0;
+  const sehatTabungan = rasioTabungan >= 20;
+
+  // === Bangun insight per kategori ===
+  const insights = Object.entries(byCat).map(([cid, v]) => {
+    const cat = window.DB.categories.find(c => c.id === cid);
+    const budget = budgetMap[cid] || 0;
+    const diff = v - budget;
+    let status, statusClass, saran, barColor;
+
+    if (budget > 0) {
+      if (diff > 0) {
+        const overPct = ((diff / budget) * 100).toFixed(0);
+        status = 'over';
+        statusClass = 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
+        barColor = 'bg-red-500';
+        saran = `⚠️ Over budget ${fmt(diff)} (${overPct}%). Saran: kurangi frekuensi belanja di kategori ini bulan depan, atau naikkan budget jika memang kebutuhan riil.`;
+      } else if (diff < 0) {
+        const underPct = ((Math.abs(diff) / budget) * 100).toFixed(0);
+        status = 'hemat';
+        statusClass = 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800';
+        barColor = 'bg-emerald-500';
+        saran = `✅ Hemat ${fmt(Math.abs(diff))} (${underPct}% dari budget). Saran: pindahkan sisa ini ke tabungan atau dana darurat.`;
+      } else {
+        status = 'pas';
+        statusClass = 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
+        barColor = 'bg-blue-500';
+        saran = `🎯 Pas sesuai budget. Saran: pertahankan pola ini bulan depan.`;
+      }
+    } else {
+      status = 'tanpa-budget';
+      statusClass = 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+      barColor = 'bg-gray-400';
+      saran = `ℹ️ Kategori ini belum punya budget. Saran: buat budget di menu Budget agar pengeluaran bulan depan lebih terkontrol.`;
+    }
+
+    return { cat, amount: v, budget, diff, status, statusClass, saran, barColor };
+  }).sort((a, b) => b.amount - a.amount);
+
+  // === Render ===
   document.getElementById('content').innerHTML = `
-    <div class="mb-4">
-      <h3 class="font-semibold text-lg">Analisis Pengeluaran</h3>
-      <p class="text-sm muted">${new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</p>
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <button onclick="window.changeAnalysisMonth(-1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">‹ Bulan Sebelumnya</button>
+      <div class="text-center">
+        <h3 class="font-semibold text-lg">Analisis Keuangan</h3>
+        <input type="month" value="${cm}" onchange="window.selectAnalysisMonth(this.value)" class="text-sm rounded px-2 py-1 border mt-1"/>
+      </div>
+      <button onclick="window.changeAnalysisMonth(1)" class="px-3 py-1.5 rounded border hover:bg-gray-50">Bulan Berikutnya ›</button>
     </div>
+
+    <!-- Kartu Ringkasan -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="card rounded-xl p-3"><div class="text-xs muted">📥 Pemasukan</div><div class="text-lg font-bold text-emerald-600">${fmt(inc)}</div></div>
+      <div class="card rounded-xl p-3"><div class="text-xs muted">📤 Pengeluaran</div><div class="text-lg font-bold text-red-600">${fmt(exp)}</div></div>
+      <div class="card rounded-xl p-3"><div class="text-xs muted">🏦 Tabungan</div><div class="text-lg font-bold text-indigo-600">${fmt(sav)}</div></div>
+      <div class="card rounded-xl p-3"><div class="text-xs muted">💰 Sisa Bersih</div><div class="text-lg font-bold ${inc - exp - sav < 0 ? 'text-red-600' : 'text-emerald-600'}">${fmt(inc - exp - sav)}</div></div>
+    </div>
+
+    <!-- Rasio Keuangan -->
     <div class="card rounded-xl p-4 mb-4">
-      <h4 class="font-semibold mb-3">💡 Insight</h4>
-      ${topCat?`<div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-        <b>Pengeluaran terbesar:</b> ${topCat.icon} ${esc(topCat.name)} sebesar <b>${fmt(top[1])}</b>
-      </div>`:''}
+      <h4 class="font-semibold mb-3">📊 Rasio Kesehatan Keuangan</h4>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="p-3 rounded-lg ${sehatTabungan ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}">
+          <div class="text-xs muted">Rasio Tabungan</div>
+          <div class="text-xl font-bold">${rasioTabungan.toFixed(1)}%</div>
+          <div class="text-xs ${sehatTabungan ? 'text-emerald-600' : 'text-amber-600'}">${sehatTabungan ? '✅ Sehat (≥20%)' : '⚠️ Di bawah standar 20%'}</div>
+        </div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <div class="text-xs muted">Rasio Pengeluaran</div>
+          <div class="text-xl font-bold">${rasioPengeluaran.toFixed(1)}%</div>
+          <div class="text-xs muted">dari total pemasukan</div>
+        </div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <div class="text-xs muted">Kategori Aktif</div>
+          <div class="text-xl font-bold">${Object.keys(byCat).length}</div>
+          <div class="text-xs muted">dari ${window.DB.categories.filter(c => c.type === 'expense').length} kategori</div>
+        </div>
+      </div>
     </div>
+
+    <!-- Tren vs Bulan Sebelumnya -->
+    <div class="card rounded-xl p-4 mb-4">
+      <h4 class="font-semibold mb-3">📈 Tren Pengeluaran</h4>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <div class="text-xs muted">Bulan Lalu</div>
+          <div class="text-lg font-bold">${fmt(prevExp)}</div>
+        </div>
+        <div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <div class="text-xs muted">Bulan Ini</div>
+          <div class="text-lg font-bold">${fmt(exp)}</div>
+        </div>
+      </div>
+      <div class="text-center p-3 rounded-lg ${trendDiff > 0 ? 'bg-red-50 dark:bg-red-900/20' : trendDiff < 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-gray-50 dark:bg-gray-800'}">
+        <div class="font-bold ${trendColor}">
+          ${trendLabel} ${fmt(Math.abs(trendDiff))}${trendPct !== null ? ` (${trendPct}%)` : ''}
+        </div>
+        <div class="text-xs muted mt-1">
+          ${trendDiff > 0 ? 'Pengeluaran naik dibanding bulan lalu. Cek kategori mana yang menyumbang kenaikan terbesar di bawah.' : trendDiff < 0 ? 'Pengeluaran turun dibanding bulan lalu. Pertahankan pola hemat ini!' : 'Pengeluaran stabil dibanding bulan lalu.'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Insight Per Kategori -->
     <div class="card rounded-xl p-4">
-      <h4 class="font-semibold mb-3">Pengeluaran per Kategori</h4>
-      ${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cid,v])=>{
-        const cat=window.DB.categories.find(c=>c.id===cid);
-        return `<div class="flex justify-between py-2 border-b last:border-0">
-          <span>${cat?.icon||''} ${esc(cat?.name)}</span>
-          <span class="font-bold">${fmt(v)}</span>
-        </div>`;
-      }).join('')||'<div class="text-center muted py-4">Tidak ada data</div>'}
+      <h4 class="font-semibold mb-3">💡 Insight & Saran per Kategori</h4>
+      ${insights.length ? insights.map(i => `
+        <div class="border rounded-lg p-3 mb-3 ${i.statusClass}">
+          <div class="flex justify-between items-start mb-2">
+            <div class="font-semibold">${i.cat?.icon || ''} ${esc(i.cat?.name || '-')}</div>
+            <div class="text-right">
+              <div class="font-bold">${fmt(i.amount)}</div>
+              ${i.budget > 0 ? `<div class="text-xs muted">Budget: ${fmt(i.budget)}</div>` : ''}
+            </div>
+          </div>
+          ${i.budget > 0 ? `
+            <div class="progress mb-2"><div class="${i.barColor}" style="width:${Math.min(100, (i.amount / i.budget) * 100)}%"></div></div>
+          ` : ''}
+          <div class="text-xs">${i.saran}</div>
+        </div>
+      `).join('') : '<div class="text-center muted py-6">Belum ada data pengeluaran di bulan ini</div>'}
     </div>
   `;
 }
@@ -1393,20 +1682,24 @@ window.openTransferForm = function() {
       <div><label class="text-xs font-semibold">Ke Rekening</label>
         <select name="to_account_id" class="w-full rounded px-3 py-2" required>${window.DB.accounts.map(a => '<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')}</select>
       </div>
-      <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="number" min="1" step="1" required class="w-full rounded px-3 py-2"/></div>
-      <div><label class="text-xs font-semibold">Biaya Admin (opsional)</label><input name="admin_fee" type="number" min="0" step="1" value="0" class="w-full rounded px-3 py-2"/></div>
+      <div><label class="text-xs font-semibold">Nominal</label><input name="amount" type="text" inputmode="numeric" required class="w-full rounded px-3 py-2" placeholder="0"/></div>
+      <div><label class="text-xs font-semibold">Biaya Admin (opsional)</label><input name="admin_fee" type="text" inputmode="numeric" class="w-full rounded px-3 py-2" value="0" placeholder="0"/></div>
       <div><label class="text-xs font-semibold">Tanggal</label><input name="date" type="date" required class="w-full rounded px-3 py-2" value="${todayISO()}"/></div>
       <div><label class="text-xs font-semibold">Catatan (Opsional)</label><input name="note" class="w-full rounded px-3 py-2" placeholder="Contoh: Top up GoPay"/></div>
       <div class="flex justify-end gap-2"><button type="button" class="px-4 py-2 rounded border" data-close>Batal</button><button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Transfer</button></div>
     </form>`, {
     onMount: root => {
+        const amountInput = root.querySelector('input[name=amount]');
+        const adminInput = root.querySelector('input[name=admin_fee]');
+        amountInput.addEventListener('input', () => window.formatInputRibuan(amountInput));
+        adminInput.addEventListener('input', () => window.formatInputRibuan(adminInput));
       root.querySelector('#trForm').addEventListener('submit', async e => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const fromId = fd.get('from_account_id');
         const toId = fd.get('to_account_id');
-        const amount = Number(fd.get('amount'));
-        const adminFee = Number(fd.get('admin_fee') || 0);
+        const amount = window.parseAngka(fd.get('amount'));
+        const adminFee = window.parseAngka(fd.get('admin_fee'));
         const fromAcc = window.DB.accounts.find(a => a.id === fromId);
 
         if (fromId === toId) {
